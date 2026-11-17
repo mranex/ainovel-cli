@@ -188,18 +188,18 @@ func NewArchitectMemoryPolicy() MemoryPolicy {
 
 // RunMeta 运行元信息，持久化到 meta/run.json。
 type RunMeta struct {
-	StartedAt            string             `json:"started_at"`
-	Provider             string             `json:"provider,omitempty"`
-	Style                string             `json:"style"`
-	Model                string             `json:"model"`
-	PlanningTier         PlanningTier       `json:"planning_tier,omitempty"`
-	StartPrompt          string             `json:"start_prompt,omitempty"`           // 用户原始创作需求（输入事实，先于启动裁定落盘；裁定失败后据此补裁）
-	PlanStart            *PlanStartRecord   `json:"plan_start,omitempty"`             // 启动裁定事实，规划期崩溃恢复的唯一依据
-	PendingSteer         string             `json:"pending_steer,omitempty"`          // 未完成的 Steer 指令，中断恢复时重新注入
-	AdvanceMode          ChapterAdvanceMode `json:"advance_mode"`                     // 章节推进模式：auto / review
-	AdvancePermitChapter int                `json:"advance_permit_chapter,omitempty"` // review 模式下一次性许可的正向章节
-	AdvanceHold          *AdvanceHold       `json:"advance_hold,omitempty"`           // 当前干预签署的一次性暂停意图
-	Translation          *TranslationProfile `json:"translation,omitempty"`           // Bộ công tắc dịch Việt riêng của truyện này
+	StartedAt            string              `json:"started_at"`
+	Provider             string              `json:"provider,omitempty"`
+	Style                string              `json:"style"`
+	Model                string              `json:"model"`
+	PlanningTier         PlanningTier        `json:"planning_tier,omitempty"`
+	StartPrompt          string              `json:"start_prompt,omitempty"`           // 用户原始创作需求（输入事实，先于启动裁定落盘；裁定失败后据此补裁）
+	PlanStart            *PlanStartRecord    `json:"plan_start,omitempty"`             // 启动裁定事实，规划期崩溃恢复的唯一依据
+	PendingSteer         string              `json:"pending_steer,omitempty"`          // 未完成的 Steer 指令，中断恢复时重新注入
+	AdvanceMode          ChapterAdvanceMode  `json:"advance_mode"`                     // 章节推进模式：auto / review
+	AdvancePermitChapter int                 `json:"advance_permit_chapter,omitempty"` // review 模式下一次性许可的正向章节
+	AdvanceHold          *AdvanceHold        `json:"advance_hold,omitempty"`           // 当前干预签署的一次性暂停意图
+	Translation          *TranslationProfile `json:"translation,omitempty"`            // Bộ công tắc dịch Việt riêng của truyện này
 }
 
 // ChapterAdvanceMode 决定新章节是否需要逐章许可。

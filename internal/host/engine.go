@@ -38,12 +38,12 @@ type engine struct {
 	// 异步执行——engine 只丢弃过期派单,不自行做残缺的重新裁定。
 	reconsult func(text string)
 
-	observer  *observer
-	budget    *BudgetSentinel
-	gate      *ChapterAdvanceGate
-	refresh   func() // 每次 writer 派发前刷新 RestorePack
-	emitEvent func(Event)
-	notify    func(kind, level, title, body string)
+	observer   *observer
+	budget     *BudgetSentinel
+	gate       *ChapterAdvanceGate
+	refresh    func() // 每次 writer 派发前刷新 RestorePack
+	emitEvent  func(Event)
+	notify     func(kind, level, title, body string)
 	onPause    func(summary string) // 引擎自主暂停(僵局/失败裁定 abort):走 host 统一暂停语义(lifecycle=paused)
 	onDone     func()               // run 结束(任何原因);host 据 store 事实定终态
 	onStepDone func(inst *flow.Instruction)

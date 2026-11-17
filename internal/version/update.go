@@ -44,7 +44,7 @@ type releaseAsset struct {
 
 func Update(ctx context.Context, opts UpdateOptions) (*UpdateResult, error) {
 	if runtime.GOOS == "windows" {
-		return nil, fmt.Errorf("Windows 不支持原地自更新，请到 https://github.com/%s/releases 下载新版", opts.Repo)
+		return nil, fmt.Errorf("Windows không hỗ trợ tự cập nhật trực tiếp file đang chạy, hãy tải bản mới tại https://github.com/%s/releases", opts.Repo)
 	}
 	if opts.Repo == "" {
 		return nil, fmt.Errorf("missing repo")

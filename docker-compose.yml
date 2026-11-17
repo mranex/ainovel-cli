@@ -1,6 +1,6 @@
 services:
   ainovel:
-    image: ghcr.io/voocel/ainovel-cli:latest
+    image: ghcr.io/mranex/ainovel-cli:latest
     build:
       context: .
     volumes:

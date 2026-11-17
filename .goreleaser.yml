@@ -72,5 +72,5 @@ changelog:
 
 release:
   github:
-    owner: voocel
+    owner: mranex
     name: ainovel-cli

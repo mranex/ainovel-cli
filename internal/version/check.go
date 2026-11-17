@@ -15,7 +15,7 @@ import (
 )
 
 // DefaultRepo 是版本检查与自更新默认指向的上游仓库。
-const DefaultRepo = "voocel/ainovel-cli"
+const DefaultRepo = "mranex/ainovel-cli"
 
 // DefaultCheckInterval 是两次联网检查之间的最小间隔。GitHub 匿名 API 限流
 // 60 req/h，且发版节奏是天级，更频繁的检查只有打扰没有收益。

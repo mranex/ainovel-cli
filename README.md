@@ -88,6 +88,14 @@ Quên lệnh khi đang dùng chỉ cần mở mục này (hoặc gõ `/help` nga
 
 ## 3. Bắt đầu nhanh & Quản lý nhiều bộ truyện
 
+### Tải nhanh sang máy khác (không cần cài Go)
+
+- **Windows**: tải file `ainovel-cli_<version>_Windows_x86_64.zip` tại [Releases](https://github.com/mranex/ainovel-cli/releases/latest), giải nén lấy `ainovel-cli.exe` là chạy ngay.
+- **Linux / macOS**:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/mranex/ainovel-cli/main/scripts/install.sh | sh
+  ```
+
 Chạy trực tiếp từ terminal trong thư mục muốn lưu truyện:
 
 ```powershell
