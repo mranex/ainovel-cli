@@ -23,7 +23,7 @@ func TestRenderTopBarShowsVersion(t *testing.T) {
 
 func TestRenderDetailContentShowsSynopsis(t *testing.T) {
 	out := ansi.Strip(renderDetailContent(host.UISnapshot{Synopsis: "少年在永夜中寻找黎明。"}, 40))
-	if !strings.Contains(out, "简介") || !strings.Contains(out, "少年在永夜中寻找黎明。") {
+	if !strings.Contains(out, "Giới thiệu") || !strings.Contains(out, "少年在永夜中寻找黎明。") {
 		t.Fatalf("detail panel missing synopsis: %q", out)
 	}
 }
@@ -129,7 +129,7 @@ func TestRenderStatusBar(t *testing.T) {
 		BudgetLimitUSD:     5,
 		TotalSavedUSD:      0.12,
 	}, "/tmp/output", 120))
-	for _, want := range []string{"test-model(200K,med)", "↑1.2M", "↓89.3k", "$0.31/$5.00", "省$0.12", "./output"} {
+	for _, want := range []string{"test-model(200K,med)", "↑1.2M", "↓89.3k", "$0.31/$5.00", "tiết kiệm $0.12", "./output"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("状态栏缺少 %q：%q", want, out)
 		}

@@ -74,7 +74,7 @@ func checkForUpdate(currentVersion string) tea.Cmd {
 	return func() tea.Msg {
 		configDir := bootstrap.DefaultConfigDir()
 		if configDir == "" {
-			return updateCheckMsg{err: fmt.Errorf("无法确定更新检查缓存目录")}
+			return updateCheckMsg{err: fmt.Errorf("không xác định được thư mục cache kiểm tra cập nhật")}
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -91,11 +91,11 @@ func checkForUpdate(currentVersion string) tea.Cmd {
 const updateNotesPreviewWidth = 56
 
 func formatUpdateNotice(result *buildversion.CheckResult) string {
-	notice := fmt.Sprintf("新版本 %s 已发布", result.Latest)
+	notice := fmt.Sprintf("Đã có phiên bản mới %s", result.Latest)
 	if preview := updateNotesPreview(result.Notes); preview != "" {
 		notice += " · " + preview
 	}
-	return notice + " · 运行 ainovel-cli update 升级"
+	return notice + " · Chạy `ainovel-cli update` để cập nhật"
 }
 
 func updateNotesPreview(notes string) string {

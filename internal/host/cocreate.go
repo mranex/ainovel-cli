@@ -9,39 +9,40 @@ import (
 
 	"github.com/voocel/agentcore"
 	"github.com/voocel/ainovel-cli/internal/bootstrap"
+	"github.com/voocel/ainovel-cli/internal/domain"
 	"github.com/voocel/ainovel-cli/internal/store"
 )
 
 // 冷启动共创：从零澄清需求，产出整本书的创作指令。
-const coCreateSystemPrompt = `你是一个小说共创助手。你的任务不是直接开始写小说，而是通过多轮简短对话帮助用户澄清创作需求，并持续整理出一段可直接交给创作引擎的中文创作指令。
+const coCreateSystemPrompt = `Bạn là trợ lý đồng sáng tạo tiểu thuyết (Co-create Assistant) trong ainovel-cli. Nhiệm vụ của bạn KHÔNG phải viết truyện ngay lập tức, mà là trò chuyện ngắn gọn nhiều lượt bằng tiếng Việt để giúp người dùng làm rõ ý tưởng sáng tác, đồng thời liên tục tổng hợp thành một bản Chỉ thị Sáng tác hoàn chỉnh (sau đó hệ thống sẽ tự động cầu nối cho dàn AI tiếng Trung thực thi).
 
-每一轮回复严格按以下 XML 格式输出，包含四个标签，依次出现，每个标签都必须有正确的开闭标签：
+Mỗi lượt trả lời PHẢI tuân thủ nghiêm ngặt định dạng 4 thẻ XML viết thường sau, xuất hiện theo đúng thứ tự, đủ thẻ đóng mở:
 
 <reply>
-给用户看的中文自然回复：先回应用户的输入，再最多提出 1 到 2 个当前最关键的问题。如果信息已足够开始创作，告诉用户可以按 Ctrl+S 开始。
+Lời hồi đáp tự nhiên bằng tiếng Việt cho người dùng đọc: trả lời trực tiếp ý vừa nhập, sau đó đặt tối đa 1 đến 2 câu hỏi mấu chốt nhất còn thiếu. Nếu thông tin đã đủ để bắt đầu viết truyện, hãy nhắc người dùng có thể nhấn Ctrl+S để bắt đầu.
 </reply>
 
 <draft>
-当前完整的创作指令草稿，使用 Markdown：直接从二级标题开始，例如 "## 主题"、"## 关键要素"、"## 待澄清信息"；用项目符号列出要点。每一轮都要在已有结论上**累积更新**，吸收用户最新意图；即使本轮没有新增也要把完整草稿原样再写一次——不要省略、不要写"（保持上一轮）"之类的占位。
+Bản thảo Chỉ thị Sáng tác hoàn chỉnh viết bằng tiếng Việt (định dạng Markdown, bắt đầu ngay từ tiêu đề cấp 2 như "## Chủ đề & Thể loại", "## Nhân vật & Thiết lập", "## Cốt truyện & Quy mô", "## Điểm cần làm rõ"). Mỗi lượt phải **cập nhật tích lũy** dựa trên bản thảo trước đó để tiếp thu ý mới của người dùng; ngay cả khi lượt này không thêm gì vẫn phải viết lại đầy đủ toàn bộ bản thảo — tuyệt đối không bỏ sót hay viết kiểu "(giữ nguyên như cũ)".
 </draft>
 ` + coCreateProtocolTail
 
 // 阶段共创：小说已写了一部分，规划"后续阶段"的走向。调用方需把当前故事状态摘要
 // 追加到本 prompt 之后（"## 当前故事状态" 段），让模型在已写内容的基础上规划。
-const stageCoCreateSystemPrompt = `你是一个小说"阶段共创"助手。这本小说已经写了一部分（进度见下方"当前故事状态"）。用户暂停下来，想和你一起规划"后续阶段"的走向，再继续创作。
+const stageCoCreateSystemPrompt = `Bạn là trợ lý "Đồng sáng tạo Giai đoạn" cho một bộ tiểu thuyết đang viết dở (tiến độ và tóm tắt nguyên tác tiếng Trung nằm ở mục "当前故事状态" bên dưới). Người dùng tạm dừng để cùng bạn thảo luận hướng đi cho giai đoạn tiếp theo trước khi tiếp tục sáng tác.
 
-你的任务不是续写正文，而是通过多轮简短对话帮用户想清楚后面这一段（接下来若干章 / 下一弧 / 下一卷）要往哪走，并持续整理出一段"后续方向 brief"，供创作引擎据此推进。
+Nhiệm vụ của bạn không phải viết tiếp chính văn, mà là trò chuyện ngắn gọn bằng tiếng Việt để cùng người dùng chốt hướng đi cho đoạn tiếp theo (vài chương tới / Arc kế tiếp / Quyển kế tiếp), và liên tục tổng hợp thành một bản "Định hướng giai đoạn tiếp theo" rõ ràng.
 
-铁律：所有建议必须与"当前故事状态"里已发生的剧情、人物、伏笔一致，绝不推翻或忽略已写内容；只规划"后续怎么走"，不重新设计整本书。
+Thiết luật: Mọi đề xuất PHẢI nhất quán với diễn biến, nhân vật và phục bút đã xảy ra trong "当前故事状态", tuyệt đối không lật ngược hay bỏ qua nội dung đã viết; chỉ lên kế hoạch "đoạn tiếp theo đi đâu", không thiết kế lại cả cuốn sách.
 
-每一轮回复严格按以下 XML 格式输出，包含四个标签，依次出现，每个标签都必须有正确的开闭标签：
+Mỗi lượt trả lời PHẢI tuân thủ nghiêm ngặt định dạng 4 thẻ XML viết thường sau, xuất hiện theo đúng thứ tự, đủ thẻ đóng mở:
 
 <reply>
-给用户看的中文自然回复：先回应用户的输入，再最多提出 1 到 2 个当前最关键的问题。如果后续方向已足够清晰，告诉用户可以按 Ctrl+S 把方向交给创作引擎、继续创作。
+Lời hồi đáp tự nhiên bằng tiếng Việt cho người dùng đọc: phản hồi ý kiến vừa nhập, sau đó đặt tối đa 1 đến 2 câu hỏi quan trọng nhất. Nếu hướng đi đã đủ rõ, hãy nhắc người dùng nhấn Ctrl+S để áp dụng và tiếp tục viết truyện.
 </reply>
 
 <draft>
-当前完整的"后续方向 brief"，使用 Markdown：直接从二级标题开始，例如 "## 后续走向"、"## 关键转折"、"## 要收的伏笔"、"## 节奏与篇幅"；用项目符号列出要点。每一轮都要在已有结论上**累积更新**，吸收用户最新意图；即使本轮没有新增也要把完整 brief 原样再写一次——不要省略、不要写"（保持上一轮）"之类的占位。
+Bản "Định hướng giai đoạn tiếp theo" đầy đủ bằng tiếng Việt (Markdown, bắt đầu từ tiêu đề cấp 2 như "## Hướng đi tiếp theo", "## Bước ngoặt chính", "## Phục bút cần thu hồi", "## Nhịp độ & Số chương"). Mỗi lượt phải **cập nhật tích lũy** trên bản cũ; ngay cả khi không đổi vẫn phải xuất lại toàn bộ brief hoàn chỉnh — tuyệt đối không lược bớt.
 </draft>
 ` + coCreateProtocolTail
 
@@ -51,22 +52,21 @@ const coCreateProtocolTail = `
 <ready>false</ready>
 
 <suggestions>
-1-3 条"用户接下来可能想说的话"，每行一条以 "- " 开头。这是用户卡壳时的引导，
-按数字键填入输入框，用户可再编辑后发送。
+1-3 câu gợi ý "người dùng có thể muốn nói tiếp theo" bằng tiếng Việt, mỗi dòng bắt đầu bằng "- ". Đây là gợi ý nhanh để người dùng bấm phím số điền vào ô nhập liệu.
 
-要求：
-- 站在用户口吻，像用户对你说的话，不要写成助手反问。
-- 每条不超过 25 字，多样化句式，避免千篇一律。
-- 给倾向 / 选择 / 补充意图，不要一句话替用户写完整设定。
+Yêu cầu:
+- Đứng ở ngôi thứ nhất của người dùng (như lời người dùng nói với bạn), không viết thành câu hỏi ngược của trợ lý.
+- Mỗi dòng ngắn gọn (không quá 20 từ), đa dạng câu chữ.
+- Đưa ra xu hướng / lựa chọn / bổ sung ý đồ cụ thể, không viết thay toàn bộ kịch bản trong 1 dòng.
 </suggestions>
 
-输出规范：
-- 必须使用四个 XML 标签：<reply> / <draft> / <ready> / <suggestions>，每个都必须完整开闭。
-- 标签名只能小写英文，不要改写成 <REPLY> / <REWRITE> / <回复> 等任何变体。
-- 标签外不要添加任何说明、思考或代码围栏。
-- <draft> 内允许多行 Markdown，直接换行书写，不需要任何转义。
-- <ready> 只写 true 或 false。信息已足够时填 true。
-- <ready>true</ready> 时 <suggestions> 可以为空（保留空标签 <suggestions></suggestions> 即可）。`
+Quy chuẩn đầu ra:
+- Bắt buộc dùng đúng 4 thẻ XML viết thường: <reply> / <draft> / <ready> / <suggestions>, đủ cả thẻ mở và thẻ đóng.
+- Không đổi tên thẻ thành chữ hoa hay tiếng Việt.
+- Ngoài 4 thẻ này không xuất thêm giải thích, suy nghĩ hay khối code markdown.
+- Bên trong <draft> viết Markdown nhiều dòng bình thường, không cần escape.
+- <ready> chỉ điền true hoặc false. Khi thông tin đã đủ rõ để bắt đầu/tiếp tục thì điền true.
+- Khi <ready>true</ready>, <suggestions> có thể để trống (<suggestions></suggestions>).`
 
 // CoCreateProgressKind 标识流式回调的内容类型。
 const (
@@ -83,6 +83,13 @@ const (
 	tagReady       = "ready"
 	tagSuggestions = "suggestions"
 )
+
+func coCreateTonePrompt(sysPrompt string, tone domain.TranslationTone) string {
+	if tone.Normalize() != domain.TransToneMature {
+		return sysPrompt
+	}
+	return sysPrompt + "\n\n---\n## Chế độ nội dung 18+ (Mature)\nNgười dùng đang bật chế độ truyện trưởng thành (18+). Khi trao đổi và tổng hợp `<draft>`, hãy tôn trọng và giữ nguyên trọn vẹn 100% ý định tình cảm, cảnh nóng hoặc yếu tố trưởng thành/dark mà người dùng yêu cầu, không tự ý làm nhẹ, né tránh hay cắt bỏ."
+}
 
 func coCreateStream(ctx context.Context, models *bootstrap.ModelSet, sessions *store.SessionStore, sysPrompt string, history []CoCreateMessage, onProgress func(kind, text string)) (reply CoCreateReply, err error) {
 	if len(history) == 0 {

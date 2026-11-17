@@ -78,13 +78,22 @@ func StartPricingRefresh(registry *ModelRegistry, cacheDir string) {
 			fetched, err := fetchModels()
 			if err != nil {
 				slog.Warn("模型元数据刷新失败", "module", "models", "err", err)
-				return
+			} else {
+				models = fetched
+				saveCache(models, cacheDir)
 			}
-			models = fetched
-			saveCache(models, cacheDir)
 		}
-		registry.MergeModels(models)
-		slog.Info("模型元数据已就绪", "module", "models", "count", len(models))
+		if len(models) > 0 {
+			registry.MergeModels(models)
+			slog.Info("模型元数据已就绪", "module", "models", "count", len(models))
+		}
+
+		if ocModels, err := RefreshOpenCodeGoModels(cacheDir); err != nil {
+			slog.Warn("刷新 OpenCode Go 模型目录失败", "module", "models", "err", err)
+		} else if len(ocModels) > 0 {
+			registry.MergeModels(ocModels)
+			slog.Info("OpenCode Go 模型元数据已就绪", "module", "models", "count", len(ocModels))
+		}
 	}()
 }
 

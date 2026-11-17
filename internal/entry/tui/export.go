@@ -34,9 +34,9 @@ func startExport(rt *host.Host, args []string) (tea.Cmd, error) {
 	}, nil
 }
 
-// parseExportArgs 解析 `/export [path] [from=N] [to=M] [--overwrite]`。
+// parseExportArgs phân tích `/export [path] [lang=vi|zh|bilingual] [from=N] [to=M] [--overwrite]`.
 //
-// 位置参数：最多一个，作为输出路径；缺省由 exp.Run 决定（{novelDir}/{BookMetadata.Title}.txt）。
+// Tham số vị trí: tối đa một đường dẫn đích; để trống sẽ xuất về thư mục truyện.
 func parseExportArgs(args []string) (exp.Options, error) {
 	var opts exp.Options
 	for _, a := range args {
@@ -49,37 +49,62 @@ func parseExportArgs(args []string) (exp.Options, error) {
 			case "from":
 				n, err := strconv.Atoi(v)
 				if err != nil || n < 0 {
-					return exp.Options{}, fmt.Errorf("from 需为非负整数：%q", v)
+					return exp.Options{}, fmt.Errorf("from phải là số nguyên không âm: %q", v)
 				}
 				opts.From = n
 			case "to":
 				n, err := strconv.Atoi(v)
 				if err != nil || n < 0 {
-					return exp.Options{}, fmt.Errorf("to 需为非负整数：%q", v)
+					return exp.Options{}, fmt.Errorf("to phải là số nguyên không âm: %q", v)
 				}
 				opts.To = n
+			case "lang":
+				switch strings.ToLower(strings.TrimSpace(v)) {
+				case "", "auto":
+					opts.Lang = exp.LangAuto
+				case "vi":
+					opts.Lang = exp.LangVI
+				case "zh":
+					opts.Lang = exp.LangZH
+				case "bilingual", "songngu":
+					opts.Lang = exp.LangBilingual
+				default:
+					return exp.Options{}, fmt.Errorf("lang không hợp lệ %q (hỗ trợ: vi / zh / bilingual / auto)", v)
+				}
 			default:
-				return exp.Options{}, fmt.Errorf("未知参数 %q（支持：from / to）", k)
+				return exp.Options{}, fmt.Errorf("tham số không hợp lệ %q (hỗ trợ: lang / from / to)", k)
 			}
 			continue
 		}
 		if strings.HasPrefix(a, "-") {
-			return exp.Options{}, fmt.Errorf("未知 flag %q", a)
+			return exp.Options{}, fmt.Errorf("cờ không hợp lệ %q", a)
 		}
 		if opts.OutPath != "" {
-			return exp.Options{}, fmt.Errorf("仅支持一个路径参数：%q", a)
+			return exp.Options{}, fmt.Errorf("chỉ hỗ trợ một đường dẫn đầu ra: %q", a)
 		}
 		opts.OutPath = a
 	}
 	return opts, nil
 }
 
-// formatExportSuccess 把 Result 渲染成事件 Summary。
+// formatExportSuccess định dạng kết quả xuất thành tóm tắt sự kiện.
 func formatExportSuccess(res *exp.Result) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "✓ 已导出 %d 章 / %s 到 %s", res.Chapters, humanBytes(res.Bytes), res.Path)
+	langLabel := ""
+	switch res.Lang {
+	case exp.LangVI:
+		langLabel = " [Tiếng Việt]"
+	case exp.LangZH:
+		langLabel = " [Tiếng Trung]"
+	case exp.LangBilingual:
+		langLabel = " [Song ngữ Việt-Trung]"
+	}
+	fmt.Fprintf(&b, "✓ Đã xuất%s %d chương / %s → %s", langLabel, res.Chapters, humanBytes(res.Bytes), res.Path)
+	if n := len(res.Untranslated); n > 0 {
+		fmt.Fprintf(&b, " (còn %d chương chưa dịch, giữ bản Trung: %s)", n, briefIntList(res.Untranslated, 5))
+	}
 	if n := len(res.Skipped); n > 0 {
-		fmt.Fprintf(&b, "（跳过 %d 章未完成：%s）", n, briefIntList(res.Skipped, 5))
+		fmt.Fprintf(&b, " (bỏ qua %d chương chưa xong: %s)", n, briefIntList(res.Skipped, 5))
 	}
 	return b.String()
 }

@@ -30,7 +30,7 @@ func renderHelpText(width int) string {
 	hintStyle := lipgloss.NewStyle().Foreground(colorDim)
 
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("命令帮助"))
+	b.WriteString(titleStyle.Render("Trợ giúp lệnh"))
 	b.WriteString("\n\n")
 
 	for i, spec := range commandSpecs() {
@@ -39,24 +39,24 @@ func renderHelpText(width int) string {
 		}
 		b.WriteString(nameStyle.Render("/" + spec.Name))
 		if len(spec.Aliases) > 0 {
-			b.WriteString(usageStyle.Render("  alias: /" + strings.Join(spec.Aliases, " /")))
+			b.WriteString(usageStyle.Render("  bí danh: /" + strings.Join(spec.Aliases, " /")))
 		}
 		b.WriteString("\n")
-		b.WriteString(usageStyle.Render("Usage: " + spec.Usage))
+		b.WriteString(usageStyle.Render("Cách dùng: " + spec.Usage))
 		b.WriteString("\n")
 		b.WriteString(descStyle.Render(wrapText(spec.Description, width)))
 		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
-	b.WriteString(titleStyle.Render("快捷键"))
+	b.WriteString(titleStyle.Render("Phím tắt"))
 	b.WriteString("\n\n")
 	for _, line := range []string{
-		"输入 / 搜索命令",
-		"↑↓ 选择命令候选",
-		"Tab/Enter 接受补全",
-		"Esc 关闭当前命令面板",
-		"Ctrl+R 切换选中复制模式（关闭鼠标上报后可拖拽选中复制，再按一次恢复）",
+		"Gõ / để tìm kiếm lệnh nhanh",
+		"↑↓ Chọn lệnh gợi ý",
+		"Tab/Enter Hoàn tất hoặc thực thi lệnh",
+		"Esc Đóng bảng hiện tại (hoặc tạm dừng khi đang viết)",
+		"Ctrl+R Bật/tắt chế độ bôi đen copy văn bản (tạm tắt chuột TUI rồi bấm lại để bật)",
 	} {
 		b.WriteString(hintStyle.Render(line))
 		b.WriteString("\n")
@@ -82,8 +82,8 @@ func renderHelpModal(width, height int, state *helpState) string {
 	modal := renderPaddedModalFrame(
 		boxW,
 		boxH,
-		"命令帮助",
-		"  ↑↓ 滚动 · Esc 关闭",
+		"Trợ giúp lệnh",
+		"  ↑↓ Cuộn · Esc Đóng",
 		strings.Split(state.viewport.View(), "\n"),
 	)
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, modal)

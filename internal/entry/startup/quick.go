@@ -10,7 +10,7 @@ import (
 func LoadPromptFile(path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", fmt.Errorf("读取 prompt 失败: %w", err)
+		return "", fmt.Errorf("đọc file yêu cầu thất bại: %w", err)
 	}
 	return strings.TrimSpace(string(data)), nil
 }

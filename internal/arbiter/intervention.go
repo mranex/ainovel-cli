@@ -33,6 +33,7 @@ type InterventionFacts struct {
 	AdvanceHoldAfter         string           `json:"advance_hold_after,omitempty"`
 	AdvanceHoldTargetChapter int              `json:"advance_hold_target_chapter,omitempty"`
 	AdvanceHoldReason        string           `json:"advance_hold_reason,omitempty"`
+	Tone                     string           `json:"tone,omitempty"`           // 内容尺度偏好（normal / mature）
 	Running                  bool             `json:"running"`                  // 干预到达时是否有 run 在进行
 	CheckpointSeq            int64            `json:"checkpoint_seq,omitempty"` // Collect 时刻最新 checkpoint;Engine 对账用
 	RecentDecisions          []RecentDecision `json:"recent_decisions,omitempty"`
@@ -106,6 +107,9 @@ func CollectInterventionFacts(st *storepkg.Store) (InterventionFacts, error) {
 			f.AdvanceHoldAfter = string(meta.AdvanceHold.After)
 			f.AdvanceHoldTargetChapter = meta.AdvanceHold.TargetChapter
 			f.AdvanceHoldReason = meta.AdvanceHold.Reason
+		}
+		if meta.Translation != nil {
+			f.Tone = string(meta.Translation.Tone)
 		}
 	}
 	if cp := st.Checkpoints.LatestGlobal(); cp != nil {

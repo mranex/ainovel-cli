@@ -146,6 +146,15 @@ func mergeConfig(base, overlay Config) Config {
 	if overlay.Style != "" {
 		base.Style = overlay.Style
 	}
+	if overlay.Translate.Genre != "" {
+		base.Translate.Genre = overlay.Translate.Genre
+	}
+	if overlay.Translate.Tone != "" {
+		base.Translate.Tone = overlay.Translate.Tone
+	}
+	if overlay.Translate.AutoTranslate != "" {
+		base.Translate.AutoTranslate = overlay.Translate.AutoTranslate
+	}
 	if overlay.ContextWindow > 0 {
 		base.ContextWindow = overlay.ContextWindow
 	}

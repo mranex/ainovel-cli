@@ -44,8 +44,9 @@ type engine struct {
 	refresh   func() // 每次 writer 派发前刷新 RestorePack
 	emitEvent func(Event)
 	notify    func(kind, level, title, body string)
-	onPause   func(summary string) // 引擎自主暂停(僵局/失败裁定 abort):走 host 统一暂停语义(lifecycle=paused)
-	onDone    func()               // run 结束(任何原因);host 据 store 事实定终态
+	onPause    func(summary string) // 引擎自主暂停(僵局/失败裁定 abort):走 host 统一暂停语义(lifecycle=paused)
+	onDone     func()               // run 结束(任何原因);host 据 store 事实定终态
+	onStepDone func(inst *flow.Instruction)
 
 	mu      sync.Mutex
 	wg      sync.WaitGroup
@@ -277,6 +278,8 @@ func (e *engine) run(ctx context.Context) {
 			if stop := e.handleWorkerError(ctx, inst, err); stop {
 				return
 			}
+		} else if e.onStepDone != nil {
+			e.onStepDone(inst)
 		}
 
 		// 政策边界:预算止损优先于验收/推进暂停。
@@ -351,8 +354,13 @@ func (e *engine) planStartFallback(ctx context.Context) (*flow.Instruction, erro
 // retryPlanStart 补裁启动决策并固化(裁定先落事实再执行,与 StartPrepared 同构)。
 func (e *engine) retryPlanStart(ctx context.Context, prompt string) *flow.Instruction {
 	start := time.Now()
+	// 启动裁定:失败显式报错中止(启动期用户在场,报错优于猜测)。
+	tone := ""
+	if profile, loadErr := e.store.RunMeta.LoadTranslationProfile(domain.TranslationProfile{}); loadErr == nil {
+		tone = string(profile.Tone)
+	}
 	decision, derr := runObservedDecision(e.observer, "启动补裁", func() (arbiter.PlanStartDecision, error) {
-		return arbiter.DecidePlanStart(ctx, e.arbiterModel, e.planStartPrompt, prompt, e.style)
+		return arbiter.DecidePlanStartWithTone(ctx, e.arbiterModel, e.planStartPrompt, prompt, e.style, tone)
 	})
 	rec := storepkg.DecisionRecord{Kind: "plan_start", Decider: "arbiter", Input: prompt,
 		Reason: decision.Reason, DurationMs: time.Since(start).Milliseconds()}
@@ -817,7 +825,7 @@ func interventionDispatchTask(task, original string) string {
 	if strings.TrimSpace(original) == "" {
 		return task
 	}
-	return task + "\n\n用户原始干预（本次修改授权的唯一来源；上下文只用于理解，不得扩大目标或范围）：\n" + original
+	return task + "\n\n用户原始干预（本次修改授权的唯一来源，可能为越南语；上下文只用于理解，不得扩大目标或范围，且所有大纲/评审/正文产物必须继续使用简体中文）：\n" + original
 }
 
 func (e *engine) recordStale(op controlOp) {

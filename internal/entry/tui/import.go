@@ -108,24 +108,24 @@ func (s *importState) refresh(contentW int) {
 	stageStyle := lipgloss.NewStyle().Foreground(colorAccent2)
 
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("导入外部小说"))
+	b.WriteString(titleStyle.Render("Nhập tiểu thuyết từ bên ngoài"))
 	b.WriteString("\n\n")
-	b.WriteString(dimStyle.Render("源文件 "))
+	b.WriteString(dimStyle.Render("File nguồn "))
 	b.WriteString(s.source)
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("开始 "))
+	b.WriteString(dimStyle.Render("Bắt đầu "))
 	b.WriteString(formatReportTime(s.startedAt))
 	if !s.finishedAt.IsZero() {
-		b.WriteString(dimStyle.Render("  完成 "))
+		b.WriteString(dimStyle.Render("  Hoàn tất "))
 		b.WriteString(formatReportTime(s.finishedAt))
 	}
 	b.WriteString("\n\n")
 
 	// 当前阶段行
-	b.WriteString(mutedStyle.Render("阶段 "))
+	b.WriteString(mutedStyle.Render("Bước "))
 	b.WriteString(stageStyle.Render(string(s.stage)))
 	if s.total > 0 {
-		b.WriteString(mutedStyle.Render("  进度 "))
+		b.WriteString(mutedStyle.Render("  Tiến độ "))
 		if s.current > 0 {
 			b.WriteString(fmt.Sprintf("%d/%d", s.current, s.total))
 		} else {
@@ -136,12 +136,12 @@ func (s *importState) refresh(contentW int) {
 
 	// 历史日志。每行一个语义图标列（对齐事件面板形态）：
 	// ✗ 红=失败 · ↻ 橙=退避重试/校验重问（同键原地跳动） · ✓ 绿=完成 · · 灰=普通进度。
-	b.WriteString(titleStyle.Render("流程日志"))
+	b.WriteString(titleStyle.Render("Nhật ký tiến trình"))
 	b.WriteString(" ")
 	if s.totalLines > len(s.history) {
-		b.WriteString(dimStyle.Render(fmt.Sprintf("(%d 条，仅显示最近 %d，全量见 logs/import.log)", s.totalLines, len(s.history))))
+		b.WriteString(dimStyle.Render(fmt.Sprintf("(%d dòng, chỉ hiện %d gần nhất, chi tiết xem logs/import.log)", s.totalLines, len(s.history))))
 	} else {
-		b.WriteString(dimStyle.Render(fmt.Sprintf("(%d 条)", s.totalLines)))
+		b.WriteString(dimStyle.Render(fmt.Sprintf("(%d dòng)", s.totalLines)))
 	}
 	b.WriteString("\n")
 	now := time.Now()
@@ -172,24 +172,24 @@ func (s *importState) refresh(contentW int) {
 	b.WriteString("\n\n")
 	switch {
 	case s.err != nil:
-		b.WriteString(errStyle.Render("导入失败"))
+		b.WriteString(errStyle.Render("Nhập truyện thất bại"))
 		b.WriteString("\n")
-		b.WriteString(dimStyle.Render("Esc 关闭面板"))
+		b.WriteString(dimStyle.Render("Esc Đóng bảng"))
 	case s.paused && s.stage == imp.StageAwaitingConfirmation:
-		b.WriteString(okStyle.Render("切分完成，等待你核对"))
+		b.WriteString(okStyle.Render("Đã tách chương xong, chờ bạn xác nhận"))
 		b.WriteString("\n")
-		b.WriteString(dimStyle.Render("y 确认切分并继续；需调整切分可 Esc 后用 /import --guide=<自然语言说明>；Esc 关闭面板"))
+		b.WriteString(dimStyle.Render("y Xác nhận & tiếp tục; muốn chỉnh lại hãy Esc rồi chạy /import --guide=<hướng dẫn>; Esc Đóng"))
 	case s.paused:
 		// 管线在等待裁定处停下，通道已关闭：按面板内提示操作后 Esc 关闭。
-		b.WriteString(okStyle.Render("导入已暂停，等待你的操作"))
+		b.WriteString(okStyle.Render("Đã tạm dừng nhập, chờ thao tác của bạn"))
 		b.WriteString("\n")
-		b.WriteString(dimStyle.Render("按上方提示继续（如 /import --story=open|closed）；Esc 关闭面板"))
+		b.WriteString(dimStyle.Render("Làm theo hướng dẫn trên (vd /import --story=open|closed); Esc Đóng"))
 	case s.done:
-		b.WriteString(okStyle.Render("导入完成，Foundation 与章节已就绪"))
+		b.WriteString(okStyle.Render("Nhập hoàn tất, thiết lập nền & các chương đã sẵn sàng"))
 		b.WriteString("\n")
-		b.WriteString(dimStyle.Render("Esc 关闭面板并接通续写门禁（引擎停在下一章边界，等你验收放行）"))
+		b.WriteString(dimStyle.Render("Esc Đóng bảng để chuyển sang chế độ chờ duyệt viết tiếp"))
 	default:
-		b.WriteString(dimStyle.Render("Esc 取消导入"))
+		b.WriteString(dimStyle.Render("Esc Hủy nhập"))
 	}
 
 	// 跟尾只在用户位于底部时生效：refresh 现在每 tick 都跑（动画/倒计时），
@@ -308,12 +308,12 @@ func renderImportModal(width, height int, s *importState, frame int) string {
 		s.viewport.Height = vpH
 	}
 
-	hint := "  ↑↓ 滚动 · Esc 取消/关闭"
+	hint := "  ↑↓ Cuộn · Esc Hủy/Đóng"
 	switch {
 	case s.paused && s.stage == imp.StageAwaitingConfirmation:
-		hint = "  ↑↓ 滚动 · y 确认切分 · Esc 关闭"
+		hint = "  ↑↓ Cuộn · y Xác nhận tách chương · Esc Đóng"
 	case running:
-		hint = "  ↑↓ 滚动 · Esc 取消"
+		hint = "  ↑↓ Cuộn · Esc Hủy"
 	}
 
 	body := strings.Split(s.viewport.View(), "\n")
@@ -324,10 +324,10 @@ func renderImportModal(width, height int, s *importState, frame int) string {
 		star := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).
 			Render(streamCursorFrames[frame%len(streamCursorFrames)])
 		status := lipgloss.NewStyle().Foreground(colorMuted).
-			Render(fmt.Sprintf(" 进行中 · 已用时 %s", formatElapsed(time.Since(s.startedAt))))
+			Render(fmt.Sprintf(" Đang xử lý · Đã chạy %s", formatElapsed(time.Since(s.startedAt))))
 		body = append([]string{star + status, ""}, body...)
 	}
-	modal := renderPaddedModalFrame(boxW, boxH, "外部小说导入", hint, body)
+	modal := renderPaddedModalFrame(boxW, boxH, "Nhập tiểu thuyết từ bên ngoài", hint, body)
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, modal)
 }
 
@@ -393,7 +393,7 @@ func (m Model) confirmImportSegmentation() (tea.Model, tea.Cmd) {
 	state, listenCmd, err := startImportRun(m.runtime, m.importSeq, imp.Options{AcceptSegmentation: true}, m.width, m.height)
 	if err != nil {
 		m.applyEvent(host.Event{
-			Time: time.Now(), Category: "ERROR", Summary: "确认切分失败：" + err.Error(), Level: "error",
+			Time: time.Now(), Category: "ERROR", Summary: "Xác nhận tách chương thất bại: " + err.Error(), Level: "error",
 		})
 		return m, nil
 	}
@@ -466,22 +466,22 @@ func parseImportArgs(args []string) (imp.Options, error) {
 		case strings.HasPrefix(a, "--story="):
 			v := strings.TrimPrefix(a, "--story=")
 			if v != "open" && v != "closed" {
-				return imp.Options{}, fmt.Errorf("--story 只能是 open 或 closed：%q", v)
+				return imp.Options{}, fmt.Errorf("--story chỉ nhận open hoặc closed: %q", v)
 			}
 			opts.StoryResolution = v
 		case strings.HasPrefix(a, "--guide="):
 			parts := append([]string{strings.TrimPrefix(a, "--guide=")}, args[i+1:]...)
 			g := strings.TrimSpace(strings.Join(parts, " "))
 			if g == "" {
-				return imp.Options{}, fmt.Errorf("--guide 需要自然语言切分指导，例如 --guide=幕间·X 也是独立章节")
+				return imp.Options{}, fmt.Errorf("--guide cần mô tả hướng dẫn tách chương, vd --guide=Mỗi hồi phụ là một chương riêng")
 			}
 			opts.Guidance = g
 			return opts, nil
 		case strings.HasPrefix(a, "--"):
-			return imp.Options{}, fmt.Errorf("未知选项 %q（支持：--yes / --story=open|closed / --continue / --guide=<切分指导>）", a)
+			return imp.Options{}, fmt.Errorf("tùy chọn không hợp lệ %q (hỗ trợ: --yes / --story=open|closed / --continue / --guide=<hướng dẫn>)", a)
 		default:
 			if opts.SourcePath != "" {
-				return imp.Options{}, fmt.Errorf("只接受一个源文件路径：多了 %q", a)
+				return imp.Options{}, fmt.Errorf("chỉ nhận một đường dẫn file nguồn: dư %q", a)
 			}
 			opts.SourcePath = a
 		}

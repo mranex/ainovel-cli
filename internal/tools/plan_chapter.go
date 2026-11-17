@@ -24,7 +24,7 @@ func (t *PlanChapterTool) Name() string { return "plan_chapter" }
 func (t *PlanChapterTool) Description() string {
 	return "保存章节写作构思。Agent 自主决定规划粒度，不强制场景拆分"
 }
-func (t *PlanChapterTool) Label() string { return "规划章节" }
+func (t *PlanChapterTool) Label() string { return "Lập dàn ý chương" }
 
 // 写工具，禁止并发。
 func (t *PlanChapterTool) ReadOnly(_ json.RawMessage) bool        { return false }

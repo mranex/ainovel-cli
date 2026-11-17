@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/voocel/ainovel-cli/internal/host/trans"
 )
 
 // Run 执行一次导出。同步返回，IO 量小（本地文件读写）。
@@ -36,6 +37,15 @@ func Run(ctx context.Context, deps Deps, opts Options) (*Result, error) {
 	}
 	if opts.Format != FormatTXT && opts.Format != FormatEPUB {
 		return nil, fmt.Errorf("exp: 暂不支持的格式 %q", opts.Format)
+	}
+	lang := Lang(strings.ToLower(strings.TrimSpace(string(opts.Lang))))
+	if lang == "auto" {
+		lang = LangAuto
+	}
+	switch lang {
+	case LangAuto, LangVI, LangZH, LangBilingual:
+	default:
+		return nil, fmt.Errorf("exp: ngôn ngữ xuất %q không hợp lệ (hỗ trợ vi / zh / bilingual)", opts.Lang)
 	}
 
 	progress, err := deps.Store.Progress.Load()
@@ -104,19 +114,6 @@ func Run(ctx context.Context, deps Deps, opts Options) (*Result, error) {
 		volumes, _ = deps.Store.Outline.LoadLayeredOutline()
 	}
 
-	outPath := opts.OutPath
-	if outPath == "" {
-		outPath = filepath.Join(deps.Store.Dir(), sanitizeFileName(book.Title)+"."+string(opts.Format))
-	}
-
-	if !opts.Overwrite {
-		if _, err := os.Stat(outPath); err == nil {
-			return nil, fmt.Errorf("文件已存在：%s（添加 --overwrite 覆盖）", outPath)
-		} else if !os.IsNotExist(err) {
-			return nil, fmt.Errorf("检查输出路径失败：%w", err)
-		}
-	}
-
 	titleIdx := buildTitleIndex(outline)
 	for _, ch := range chapters {
 		summary, err := deps.Store.Summaries.LoadSummary(ch)
@@ -132,12 +129,108 @@ func Run(ctx context.Context, deps Deps, opts Options) (*Result, error) {
 		locations = buildLocations(volumes)
 	}
 
+	viManifest, _ := trans.LoadManifest(deps.Store.Dir())
+	viBodies := make(map[int]string, len(chapters))
+	viTitles := make(chapterTitleIndex, len(chapters))
+	hasVi := make(map[int]bool, len(chapters))
+	viCount := 0
+	var untranslated []int
+	for _, ch := range chapters {
+		titleVi, bodyVi, ok, _ := trans.LoadChapterVi(deps.Store.Dir(), ch)
+		if !ok && viManifest != nil {
+			if entry, exists := viManifest.Chapters[ch]; exists && titleVi == "" {
+				titleVi = entry.TitleVi
+			}
+		}
+		if ok {
+			hasVi[ch] = true
+			viBodies[ch] = bodyVi
+			viTitles[ch] = titleVi
+			viCount++
+		} else {
+			untranslated = append(untranslated, ch)
+		}
+	}
+
+	effectiveLang := lang
+	if effectiveLang == LangAuto {
+		if viCount > 0 {
+			effectiveLang = LangVI
+		} else {
+			effectiveLang = LangZH
+		}
+	}
+	if effectiveLang == LangVI && viCount == 0 {
+		return nil, fmt.Errorf("chưa có bản dịch tiếng Việt nào trong phạm vi %d..%d; hãy chạy /translate trước hoặc dùng lang=zh", from, to)
+	}
+
+	exportBook := *book
+	exportTitles := titleIdx
+	exportLocations := locations
+	exportBodies := bodies
+
+	if effectiveLang == LangVI || effectiveLang == LangBilingual {
+		if viManifest != nil {
+			if strings.TrimSpace(viManifest.BookTitleVi) != "" {
+				exportBook.Title = strings.TrimSpace(viManifest.BookTitleVi)
+			}
+			if strings.TrimSpace(viManifest.SynopsisVi) != "" {
+				exportBook.Synopsis = strings.TrimSpace(viManifest.SynopsisVi)
+			}
+			if len(locations) > 0 && len(viManifest.VolumesVi) > 0 {
+				clonedLocs := make(map[int]chapterLocation, len(locations))
+				for ch, loc := range locations {
+					if vVi := strings.TrimSpace(viManifest.VolumesVi[loc.VolumeIdx]); vVi != "" {
+						loc.VolumeTitle = vVi
+					}
+					clonedLocs[ch] = loc
+				}
+				exportLocations = clonedLocs
+			}
+		}
+		mergedTitles := make(chapterTitleIndex, len(chapters))
+		mergedBodies := make(map[int]string, len(chapters))
+		for _, ch := range chapters {
+			if hasVi[ch] {
+				mergedBodies[ch] = viBodies[ch]
+				if strings.TrimSpace(viTitles[ch]) != "" {
+					mergedTitles[ch] = viTitles[ch]
+				} else {
+					mergedTitles[ch] = titleIdx[ch]
+				}
+			} else {
+				mergedBodies[ch] = bodies[ch]
+				mergedTitles[ch] = titleIdx[ch]
+			}
+		}
+		exportTitles = mergedTitles
+		exportBodies = mergedBodies
+	}
+
+	outPath := opts.OutPath
+	if outPath == "" {
+		baseName := sanitizeFileName(exportBook.Title)
+		if effectiveLang == LangBilingual {
+			outPath = filepath.Join(deps.Store.Dir(), baseName+".bilingual."+string(opts.Format))
+		} else {
+			outPath = filepath.Join(deps.Store.Dir(), baseName+"."+string(opts.Format))
+		}
+	}
+
+	if !opts.Overwrite {
+		if _, err := os.Stat(outPath); err == nil {
+			return nil, fmt.Errorf("文件已存在：%s（添加 --overwrite 覆盖）", outPath)
+		} else if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("检查输出路径失败：%w", err)
+		}
+	}
+
 	var data []byte
 	switch opts.Format {
 	case FormatTXT:
-		data = []byte(renderTXT(book.Title, chapters, titleIdx, locations, bodies))
+		data = []byte(renderTXTWithLang(exportBook.Title, chapters, exportTitles, exportLocations, exportBodies, effectiveLang, hasVi, titleIdx, bodies))
 	case FormatEPUB:
-		buf, err := renderEPUB(*book, chapters, titleIdx, locations, bodies)
+		buf, err := renderEPUBWithLang(exportBook, chapters, exportTitles, exportLocations, exportBodies, effectiveLang, hasVi, titleIdx, bodies)
 		if err != nil {
 			return nil, fmt.Errorf("渲染 EPUB 失败：%w", err)
 		}
@@ -148,11 +241,17 @@ func Run(ctx context.Context, deps Deps, opts Options) (*Result, error) {
 		return nil, fmt.Errorf("写入失败：%w", err)
 	}
 
+	var untranslatedRes []int
+	if effectiveLang == LangVI || effectiveLang == LangBilingual {
+		untranslatedRes = untranslated
+	}
 	return &Result{
-		Path:     outPath,
-		Chapters: len(chapters),
-		Bytes:    len(data),
-		Skipped:  skipped,
+		Path:         outPath,
+		Chapters:     len(chapters),
+		Bytes:        len(data),
+		Skipped:      skipped,
+		Lang:         effectiveLang,
+		Untranslated: untranslatedRes,
 	}, nil
 }
 

@@ -30,7 +30,7 @@ func TestCommandPaletteBlocksIdleCommandsAndExplainsPause(t *testing.T) {
 			m := restrictedCommandModel(t, spec.Name)
 			items := m.commandPaletteItems()
 			out := ansi.Strip(renderCommandPalette(100, items, m.compIdx))
-			if !strings.Contains(out, "暂不可用") || !strings.Contains(out, "Esc 关闭面板") || !strings.Contains(out, "再按 Esc 暂停") || strings.Contains(out, "Tab/Enter 接受") {
+			if !strings.Contains(out, "Tạm khóa") || !strings.Contains(out, "Bấm Esc đóng bảng lệnh") || !strings.Contains(out, "bấm Esc lần nữa để tạm dừng") || strings.Contains(out, "Tab/Enter Chấp nhận") {
 				t.Fatalf("面板须说明如何暂停，不能提示可直接执行: %s", out)
 			}
 			for _, key := range []tea.KeyType{tea.KeyEnter, tea.KeyTab} {
@@ -44,7 +44,7 @@ func TestCommandPaletteBlocksIdleCommandsAndExplainsPause(t *testing.T) {
 			m.clearCommandPalette()
 			next, cmd := m.handleSlashCommand(slashCommand{name: spec.Name})
 			got := next.(Model)
-			if cmd != nil || len(got.events) != 1 || !strings.Contains(got.events[0].Summary, "请按 Esc 暂停创作") {
+			if cmd != nil || len(got.events) != 1 || !strings.Contains(got.events[0].Summary, "Bấm Esc tạm dừng viết trước") {
 				t.Fatalf("直接输入也须给出暂停操作指引: %+v", got.events)
 			}
 		})
@@ -56,7 +56,7 @@ func TestCommandPaletteTracksPauseWithoutRetyping(t *testing.T) {
 	// 使用真实消息处理更新状态，不重新生成搜索词或候选。
 	next, _, _ := m.handleRuntimeMsg(abortResultMsg{stopped: true})
 	m = next.(Model)
-	if hint := m.commandPaletteItems()[0].Unavailable; !strings.Contains(hint, "正在暂停") || strings.Contains(hint, "按 Esc 暂停") {
+	if hint := m.commandPaletteItems()[0].Unavailable; !strings.Contains(hint, "Đang tạm dừng") || strings.Contains(hint, "bấm Esc") {
 		t.Fatalf("暂停中应等待，不能再提示发起暂停: %q", hint)
 	}
 	next, _, _ = m.handleRuntimeMsg(doneMsg{})
@@ -66,7 +66,7 @@ func TestCommandPaletteTracksPauseWithoutRetyping(t *testing.T) {
 		t.Fatalf("暂停完成后不能残留限制: %+v", items[0])
 	}
 	out := ansi.Strip(renderCommandPalette(100, items, m.compIdx))
-	if strings.Contains(out, "暂不可用") || !strings.Contains(out, "Tab/Enter 接受") {
+	if strings.Contains(out, "Tạm khóa") || !strings.Contains(out, "Tab/Enter Chấp nhận") {
 		t.Fatalf("暂停后须恢复正常操作提示: %s", out)
 	}
 	next, cmd, handled := m.handleCommandPaletteKey(tea.KeyMsg{Type: tea.KeyEnter})
@@ -105,8 +105,8 @@ func TestIdleCommandsWaitForHostPausingAndStartup(t *testing.T) {
 		state    string
 		want     string
 	}{
-		{"pausing", false, "pausing", "正在暂停"},
-		{"starting", true, "starting", "正在启动"},
+		{"pausing", false, "pausing", "Đang tạm dừng"},
+		{"starting", true, "starting", "Đang khởi tạo truyện"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := Model{starting: tc.starting, snapshot: host.UISnapshot{RuntimeState: tc.state}, eventIndex: map[string]int{}}

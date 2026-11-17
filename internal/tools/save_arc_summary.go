@@ -29,7 +29,7 @@ func (t *SaveArcSummaryTool) Name() string { return "save_arc_summary" }
 func (t *SaveArcSummaryTool) Description() string {
 	return "保存弧级摘要、角色状态快照和写作规则（长篇模式，弧结束时调用）"
 }
-func (t *SaveArcSummaryTool) Label() string { return "保存弧摘要" }
+func (t *SaveArcSummaryTool) Label() string { return "Lưu tóm tắt Arc" }
 
 // 写工具，禁止并发。
 func (t *SaveArcSummaryTool) ReadOnly(_ json.RawMessage) bool        { return false }

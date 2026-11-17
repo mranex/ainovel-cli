@@ -21,7 +21,7 @@ func NewExpandNextArcTool(store *store.Store) *ExpandNextArcTool {
 }
 
 func (t *ExpandNextArcTool) Name() string  { return "expand_next_arc" }
-func (t *ExpandNextArcTool) Label() string { return "展开下一弧" }
+func (t *ExpandNextArcTool) Label() string { return "Mở rộng Arc tiếp theo" }
 func (t *ExpandNextArcTool) Description() string {
 	return "展开当前已完成弧之后的下一骨架弧。目标卷弧由系统根据进度和大纲确定；只需提交结合已完成事实校准后的 title、goal 和 chapters。"
 }

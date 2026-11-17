@@ -20,7 +20,7 @@ func NewResolveOutlineFeedbackTool(store *store.Store) *ResolveOutlineFeedbackTo
 }
 
 func (t *ResolveOutlineFeedbackTool) Name() string  { return "resolve_outline_feedback" }
-func (t *ResolveOutlineFeedbackTool) Label() string { return "确认大纲无需调整" }
+func (t *ResolveOutlineFeedbackTool) Label() string { return "Xác nhận giữ nguyên đại cương" }
 func (t *ResolveOutlineFeedbackTool) Description() string {
 	return "确认已审查全部 writer_feedback，且现有后续计划仍然适用。只有无需修改大纲时调用；需要修改时使用 revise_outline 或结构工具。"
 }

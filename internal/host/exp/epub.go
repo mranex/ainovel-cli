@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/voocel/ainovel-cli/internal/host/trans"
 )
 
 // renderEPUB 把章节集合打包成 EPUB 3 字节流。
@@ -30,6 +31,21 @@ func renderEPUB(
 	locations map[int]chapterLocation,
 	bodies map[int]string,
 ) ([]byte, error) {
+	return renderEPUBWithLang(book, chapters, titleIdx, locations, bodies, LangZH, nil, nil, nil)
+}
+
+func renderEPUBWithLang(
+	book domain.BookMetadata,
+	chapters []int,
+	titleIdx chapterTitleIndex,
+	locations map[int]chapterLocation,
+	bodies map[int]string,
+	lang Lang,
+	hasVi map[int]bool,
+	zhTitleIdx chapterTitleIndex,
+	zhBodies map[int]string,
+) ([]byte, error) {
+	isVi := lang == LangVI || lang == LangBilingual
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 
@@ -54,7 +70,7 @@ func renderEPUB(
 
 	hasCover := strings.TrimSpace(book.Title) != ""
 	if hasCover {
-		if err := zipDeflate(zw, "OEBPS/cover.xhtml", renderCoverXHTML(book.Title)); err != nil {
+		if err := zipDeflate(zw, "OEBPS/cover.xhtml", renderCoverXHTML(book.Title, isVi)); err != nil {
 			return nil, err
 		}
 	}
@@ -62,18 +78,33 @@ func renderEPUB(
 	for _, ch := range chapters {
 		loc, hasLoc := locations[ch]
 		title := strings.TrimSpace(titleIdx[ch])
-		body := domain.ChapterBody(strings.TrimSpace(bodies[ch]), title)
-		xhtml := renderChapterXHTML(ch, title, loc, hasLoc, body)
+		zhTitle := strings.TrimSpace(zhTitleIdx[ch])
+		zhRaw := strings.TrimSpace(zhBodies[ch])
+		if zhRaw == "" {
+			zhRaw = strings.TrimSpace(bodies[ch])
+		}
+		translated := !isVi || hasVi == nil || hasVi[ch]
+		var body string
+		if isVi && translated {
+			body = trans.StripViChapterHeader(domain.ChapterBody(strings.TrimSpace(bodies[ch]), title), title)
+		} else {
+			body = domain.ChapterBody(strings.TrimSpace(bodies[ch]), zhTitle)
+			if !isVi {
+				body = domain.ChapterBody(strings.TrimSpace(bodies[ch]), title)
+			}
+		}
+		zhBody := domain.ChapterBody(zhRaw, zhTitle)
+		xhtml := renderChapterXHTML(ch, title, loc, hasLoc, body, lang, translated, zhTitle, zhBody)
 		if err := zipDeflate(zw, "OEBPS/"+chapterFileName(ch), xhtml); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := zipDeflate(zw, "OEBPS/nav.xhtml", renderNavXHTML(hasCover, chapters, titleIdx)); err != nil {
+	if err := zipDeflate(zw, "OEBPS/nav.xhtml", renderNavXHTML(hasCover, chapters, titleIdx, isVi)); err != nil {
 		return nil, err
 	}
 
-	if err := zipDeflate(zw, "OEBPS/content.opf", renderOPF(book, hasCover, chapters)); err != nil {
+	if err := zipDeflate(zw, "OEBPS/content.opf", renderOPF(book, hasCover, chapters, isVi)); err != nil {
 		return nil, err
 	}
 
@@ -117,35 +148,73 @@ h1.book-title { font-size: 2em; text-align: center; margin: 4em 0 1em; }
 .volume-divider { font-size: 1.6em; text-align: center; margin: 4em 0 1em; font-weight: bold; }
 h1.chapter-title { font-size: 1.4em; text-align: center; margin: 2em 0 1.5em; }
 p { text-indent: 2em; margin: 0.5em 0; }
+.lang-note { text-indent: 0; font-style: italic; opacity: 0.75; margin: 1.5em 0 0.8em; }
+.bilingual-divider { border: none; border-top: 1px solid #888; margin: 2em 0 1.2em; }
 `
 
 // 章节 XHTML ────────────────────────────────────────────────
 
-func renderChapterXHTML(ch int, title string, loc chapterLocation, hasLoc bool, body string) string {
+func renderChapterXHTML(ch int, title string, loc chapterLocation, hasLoc bool, body string, lang Lang, translated bool, zhTitle, zhBody string) string {
+	isVi := lang == LangVI || lang == LangBilingual
 	var b strings.Builder
-	displayTitle := fmt.Sprintf("第 %d 章", ch)
-	if title != "" {
-		displayTitle = fmt.Sprintf("第 %d 章 %s", ch, title)
+	var displayTitle, xmlLang string
+	if isVi {
+		xmlLang = "vi"
+		displayTitle = fmt.Sprintf("Chương %d", ch)
+		if title != "" {
+			displayTitle = fmt.Sprintf("Chương %d: %s", ch, title)
+		}
+	} else {
+		xmlLang = "zh-CN"
+		displayTitle = fmt.Sprintf("第 %d 章", ch)
+		if title != "" {
+			displayTitle = fmt.Sprintf("第 %d 章 %s", ch, title)
+		}
 	}
 
 	fmt.Fprintf(&b, `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-CN">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="%s">
 <head>
   <title>%s</title>
   <link rel="stylesheet" type="text/css" href="style.css"/>
 </head>
 <body>
-`, html.EscapeString(displayTitle))
+`, xmlLang, html.EscapeString(displayTitle))
 
 	if hasLoc && loc.IsFirstOfVolume {
-		fmt.Fprintf(&b, "  <div class=\"volume-divider\">第 %d 卷 %s</div>\n",
-			loc.VolumeIdx, html.EscapeString(strings.TrimSpace(loc.VolumeTitle)))
+		if isVi {
+			fmt.Fprintf(&b, "  <div class=\"volume-divider\">Quyển %d %s</div>\n",
+				loc.VolumeIdx, html.EscapeString(strings.TrimSpace(loc.VolumeTitle)))
+		} else {
+			fmt.Fprintf(&b, "  <div class=\"volume-divider\">第 %d 卷 %s</div>\n",
+				loc.VolumeIdx, html.EscapeString(strings.TrimSpace(loc.VolumeTitle)))
+		}
 	}
 
 	fmt.Fprintf(&b, "  <h1 class=\"chapter-title\">%s</h1>\n", html.EscapeString(displayTitle))
-	for _, para := range splitParagraphs(body) {
-		fmt.Fprintf(&b, "  <p>%s</p>\n", html.EscapeString(para))
+	if !isVi || translated {
+		for _, para := range splitParagraphs(body) {
+			fmt.Fprintf(&b, "  <p>%s</p>\n", html.EscapeString(para))
+		}
+	} else if lang == LangVI {
+		b.WriteString("  <p class=\"lang-note\">[Chưa dịch tiếng Việt — nguyên bản tiếng Trung]</p>\n")
+		for _, para := range splitParagraphs(body) {
+			fmt.Fprintf(&b, "  <p>%s</p>\n", html.EscapeString(para))
+		}
+	}
+
+	if lang == LangBilingual {
+		b.WriteString("  <hr class=\"bilingual-divider\"/>\n")
+		b.WriteString("  <p class=\"lang-note\">[Nguyên bản tiếng Trung]</p>\n")
+		zhHeading := fmt.Sprintf("第 %d 章", ch)
+		if zhTitle != "" {
+			zhHeading = fmt.Sprintf("第 %d 章 %s", ch, zhTitle)
+		}
+		fmt.Fprintf(&b, "  <h2 class=\"chapter-title\">%s</h2>\n", html.EscapeString(zhHeading))
+		for _, para := range splitParagraphs(zhBody) {
+			fmt.Fprintf(&b, "  <p>%s</p>\n", html.EscapeString(para))
+		}
 	}
 	b.WriteString("</body>\n</html>\n")
 	return b.String()
@@ -171,17 +240,23 @@ func splitParagraphs(body string) []string {
 
 // 封面 ────────────────────────────────────────────────
 
-func renderCoverXHTML(novelName string) string {
+func renderCoverXHTML(novelName string, isVi bool) string {
+	xmlLang := "zh-CN"
+	coverTitle := "封面"
+	if isVi {
+		xmlLang = "vi"
+		coverTitle = "Bìa sách"
+	}
 	var b strings.Builder
-	b.WriteString(`<?xml version="1.0" encoding="utf-8"?>
+	fmt.Fprintf(&b, `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-CN">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="%s">
 <head>
-  <title>封面</title>
+  <title>%s</title>
   <link rel="stylesheet" type="text/css" href="style.css"/>
 </head>
 <body>
-`)
+`, xmlLang, coverTitle)
 	if name := strings.TrimSpace(novelName); name != "" {
 		fmt.Fprintf(&b, "  <h1 class=\"book-title\">%s</h1>\n", html.EscapeString(name))
 	}
@@ -191,31 +266,47 @@ func renderCoverXHTML(novelName string) string {
 
 // nav.xhtml（EPUB 3 navigation）────────────────────────────────────────────────
 
-func renderNavXHTML(hasCover bool, chapters []int, titleIdx chapterTitleIndex) string {
+func renderNavXHTML(hasCover bool, chapters []int, titleIdx chapterTitleIndex, isVi bool) string {
+	xmlLang := "zh-CN"
+	navTitle := "目录"
+	coverLabel := "封面"
+	if isVi {
+		xmlLang = "vi"
+		navTitle = "Mục lục"
+		coverLabel = "Bìa sách"
+	}
 	var b strings.Builder
-	b.WriteString(`<?xml version="1.0" encoding="utf-8"?>
+	fmt.Fprintf(&b, `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="zh-CN">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="%s">
 <head>
-  <title>目录</title>
+  <title>%s</title>
   <link rel="stylesheet" type="text/css" href="style.css"/>
 </head>
 <body>
   <nav epub:type="toc">
-    <h1>目录</h1>
+    <h1>%s</h1>
     <ol>
-`)
+`, xmlLang, navTitle, navTitle)
 	if hasCover {
-		b.WriteString("      <li><a href=\"cover.xhtml\">封面</a></li>\n")
+		fmt.Fprintf(&b, "      <li><a href=\"cover.xhtml\">%s</a></li>\n", coverLabel)
 	}
 
 	// 平铺章节列表。卷/弧分组在阅读器里反而不如单层目录清爽（阅读器自己会折叠），
 	// 而且 EPUB 3 nav 嵌套 ol 在某些阅读器上渲染怪。保持简单。
 	for _, ch := range chapters {
 		title := strings.TrimSpace(titleIdx[ch])
-		display := fmt.Sprintf("第 %d 章", ch)
-		if title != "" {
-			display = fmt.Sprintf("第 %d 章 %s", ch, title)
+		var display string
+		if isVi {
+			display = fmt.Sprintf("Chương %d", ch)
+			if title != "" {
+				display = fmt.Sprintf("Chương %d: %s", ch, title)
+			}
+		} else {
+			display = fmt.Sprintf("第 %d 章", ch)
+			if title != "" {
+				display = fmt.Sprintf("第 %d 章 %s", ch, title)
+			}
 		}
 		fmt.Fprintf(&b, "      <li><a href=\"%s\">%s</a></li>\n",
 			chapterFileName(ch), html.EscapeString(display))
@@ -231,7 +322,7 @@ func renderNavXHTML(hasCover bool, chapters []int, titleIdx chapterTitleIndex) s
 
 // content.opf ────────────────────────────────────────────────
 
-func renderOPF(book domain.BookMetadata, hasCover bool, chapters []int) string {
+func renderOPF(book domain.BookMetadata, hasCover bool, chapters []int, isVi bool) string {
 	bookID := bookIdentifier(book.Title)
 	modified := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 
@@ -239,14 +330,18 @@ func renderOPF(book domain.BookMetadata, hasCover bool, chapters []int) string {
 	if title == "" {
 		title = "Untitled"
 	}
+	xmlLang := "zh-CN"
+	if isVi {
+		xmlLang = "vi"
+	}
 
 	var b strings.Builder
 	fmt.Fprintf(&b, `<?xml version="1.0" encoding="utf-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="zh-CN">
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="%s">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="bookid">%s</dc:identifier>
     <dc:title>%s</dc:title>
-    <dc:language>zh-CN</dc:language>
+    <dc:language>%s</dc:language>
     <dc:creator>ainovel-cli</dc:creator>
     <dc:description>%s</dc:description>
     <meta property="dcterms:modified">%s</meta>
@@ -254,7 +349,7 @@ func renderOPF(book domain.BookMetadata, hasCover bool, chapters []int) string {
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
     <item id="css" href="style.css" media-type="text/css"/>
-`, html.EscapeString(bookID), html.EscapeString(title), html.EscapeString(book.Synopsis), modified)
+`, xmlLang, html.EscapeString(bookID), html.EscapeString(title), xmlLang, html.EscapeString(book.Synopsis), modified)
 
 	if hasCover {
 		b.WriteString(`    <item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>` + "\n")

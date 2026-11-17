@@ -148,16 +148,16 @@ func (m Model) commandUnavailable(needsIdle bool) string {
 		return ""
 	}
 	if m.abortPending || m.snapshot.RuntimeState == "pausing" {
-		return "正在暂停，请等待暂停完成后重试"
+		return "Đang tạm dừng, vui lòng chờ dừng hẳn rồi thử lại"
 	}
 	if m.starting {
-		return "正在启动创作，请等待启动完成后重试"
+		return "Đang khởi tạo truyện, vui lòng chờ xong rồi thử lại"
 	}
 	if m.snapshot.IsRunning {
 		if m.compActive {
-			return "Esc 关闭面板，再按 Esc 暂停；等待暂停完成"
+			return "Bấm Esc đóng bảng lệnh, bấm Esc lần nữa để tạm dừng rồi thử lại"
 		}
-		return "请按 Esc 暂停创作，等待暂停完成后重试"
+		return "Bấm Esc tạm dừng viết trước, chờ dừng hẳn rồi thử lại"
 	}
 	return ""
 }
@@ -214,7 +214,7 @@ func renderCommandPalette(width int, items []commandPaletteItem, cursor int) str
 		// 中文场景实际宽度 = 期望的 2 倍，导致弹窗溢出。
 		description := item.Description
 		if item.Unavailable != "" {
-			description = "暂不可用 · " + description
+			description = "Tạm khóa · " + description
 			descRenderer = mutedStyle
 		}
 		desc := truncateWidth(description, max(12, contentW-18))
@@ -230,13 +230,13 @@ func renderCommandPalette(width int, items []commandPaletteItem, cursor int) str
 	if selectedIdx < 0 || selectedIdx >= len(visible) {
 		selectedIdx = 0
 	}
-	hint := "↑↓ 选择 · Tab/Enter 接受 · Esc 关闭"
+	hint := "↑↓ Chọn · Tab/Enter Chấp nhận · Esc Đóng"
 	if unavailable := visible[selectedIdx].Unavailable; unavailable != "" {
 		hint = unavailable
 	}
-	usage := "Usage: " + visible[selectedIdx].Usage
+	usage := "Cú pháp: " + visible[selectedIdx].Usage
 	if remaining > 0 {
-		usage = usage + " · 还有 " + strconv.Itoa(remaining) + " 个命令"
+		usage = usage + " · còn " + strconv.Itoa(remaining) + " lệnh"
 	}
 	usageLine := mutedStyle.Render(truncateWidth(usage, contentW))
 	body = append(body, usageLine+strings.Repeat(" ", max(0, contentW-lipgloss.Width(usageLine))))
@@ -244,7 +244,7 @@ func renderCommandPalette(width int, items []commandPaletteItem, cursor int) str
 		body = append(body, mutedStyle.Render(line)+strings.Repeat(" ", max(0, contentW-lipgloss.Width(line))))
 	}
 
-	return renderPaddedModalFrame(boxW, len(body)+2, "命令", "", body)
+	return renderPaddedModalFrame(boxW, len(body)+2, "Danh sách lệnh", "", body)
 }
 
 func commandPaletteWindow(total, cursor, limit int) (start, end int) {

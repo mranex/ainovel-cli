@@ -22,7 +22,7 @@ func NewReviseOutlineTool(store *store.Store) *ReviseOutlineTool {
 }
 
 func (t *ReviseOutlineTool) Name() string  { return "revise_outline" }
-func (t *ReviseOutlineTool) Label() string { return "修订大纲" }
+func (t *ReviseOutlineTool) Label() string { return "Sửa đại cương" }
 func (t *ReviseOutlineTool) Description() string {
 	return "修订尚未发生的大纲。从 from_chapter 起，用 replacement 完整替换后续计划：" +
 		"扁平大纲替换全书尾段，分层大纲替换该章所在弧的尾段；已完成或正在写作的章节不可移动。" +

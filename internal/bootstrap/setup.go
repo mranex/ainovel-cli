@@ -51,6 +51,7 @@ type ProviderPreset struct {
 
 var setupProviders = []setupProvider{
 	{name: "openrouter", label: "OpenRouter", baseURL: "https://openrouter.ai/api/v1"},
+	{name: "opencode-go", label: "OpenCode Go", baseURL: DefaultOpenCodeGoBaseURL},
 	{name: "anthropic", label: "Anthropic"},
 	{name: "gemini", label: "Gemini"},
 	{name: "openai", label: "OpenAI"},
@@ -80,9 +81,9 @@ func ProviderPresets() []ProviderPreset {
 func RunSetup() (Config, error) {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).
-		Render("未检测到配置文件，开始初始化设置..."))
-	fmt.Fprintf(os.Stderr, "  配置文件路径：%s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render(DefaultConfigPath()))
-	fmt.Fprintf(os.Stderr, "  完成后可随时编辑该文件调整高级设置。\n")
+		Render("Chưa phát hiện file cấu hình, bắt đầu thiết lập ban đầu..."))
+	fmt.Fprintf(os.Stderr, "  Đường dẫn file cấu hình: %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render(DefaultConfigPath()))
+	fmt.Fprintf(os.Stderr, "  Sau khi xong bạn có thể mở file này để chỉnh thêm tùy chọn nâng cao.\n")
 	fmt.Fprintln(os.Stderr)
 
 	// Step 1: 选择 Provider
@@ -97,7 +98,7 @@ func RunSetup() (Config, error) {
 
 	// 自定义代理：额外问名称和 API 协议类型
 	if sp.needType {
-		providerName, err = runTextInput("Provider 名称", "my-proxy")
+		providerName, err = runTextInput("Tên Provider", "my-proxy")
 		if err != nil {
 			return Config{}, err
 		}
@@ -111,7 +112,7 @@ func RunSetup() (Config, error) {
 	// Step 2: 输入 API Key
 	var apiKey string
 	if sp.apiKeyOptional {
-		apiKey, err = runOptionalTextInput("[2/4] API Key（可留空）", "留空表示不使用 API Key")
+		apiKey, err = runOptionalTextInput("[2/4] API Key (có thể bỏ trống)", "Bỏ trống nếu không dùng API Key")
 	} else {
 		apiKey, err = runTextInput("[2/4] API Key", "sk-xxx")
 	}
@@ -120,18 +121,18 @@ func RunSetup() (Config, error) {
 	}
 	pc.APIKey = apiKey
 	if apiKey == "" {
-		printStepDone("API Key", "未设置")
+		printStepDone("API Key", "Chưa đặt")
 	} else {
 		printStepDone("API Key", maskKey(apiKey))
 	}
 
 	// Step 3: Base URL（直接回车使用官方默认地址）
 	baseDefault := sp.baseURL
-	baseHint := "留空使用官方地址"
+	baseHint := "Bỏ trống để dùng địa chỉ mặc định chính thức"
 	if baseDefault != "" {
 		baseHint = baseDefault
 	}
-	baseURL, err := runTextInputWithDefault("[3/4] Base URL（直接回车使用默认，代理用户填写代理地址）", baseHint, baseDefault)
+	baseURL, err := runTextInputWithDefault("[3/4] Base URL (nhấn Enter dùng mặc định, hoặc điền URL proxy)", baseHint, baseDefault)
 	if err != nil {
 		return Config{}, err
 	}
@@ -139,11 +140,15 @@ func RunSetup() (Config, error) {
 	if baseURL != "" {
 		printStepDone("Base URL", baseURL)
 	} else {
-		printStepDone("Base URL", "默认")
+		printStepDone("Base URL", "Mặc định")
 	}
 
 	// Step 4: 模型名（必填）
-	modelName, err := runTextInput("[4/4] 模型名称", "例如：gpt-4o / claude-sonnet-4 / gemini-2.5-pro")
+	modelPlaceholder := "Ví dụ: deepseek-chat / claude-sonnet-4 / gemini-2.5-pro"
+	if providerName == "opencode-go" {
+		modelPlaceholder = "Ví dụ: deepseek-v4-pro / glm-5.3 / qwen4-max / kimi-k3.1-pro"
+	}
+	modelName, err := runTextInput("[4/4] Tên Model", modelPlaceholder)
 	if err != nil {
 		return Config{}, err
 	}
@@ -161,7 +166,7 @@ func RunSetup() (Config, error) {
 	// 保存
 	path := DefaultConfigPath()
 	if err := SaveConfig(path, cfg); err != nil {
-		return cfg, fmt.Errorf("save config: %w", err)
+		return cfg, fmt.Errorf("lưu file cấu hình thất bại: %w", err)
 	}
 
 	// 生成注释模板
@@ -171,12 +176,12 @@ func RunSetup() (Config, error) {
 	rulesDir := rules.DefaultHomeRulesDir()
 
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintf(os.Stderr, "%s 配置已保存到 %s\n",
+	fmt.Fprintf(os.Stderr, "%s Đã lưu cấu hình vào %s\n",
 		lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render("✓"), path)
-	fmt.Fprintf(os.Stderr, "  默认模型：%s\n", modelName)
-	fmt.Fprintln(os.Stderr, "  如需按角色配置不同模型，编辑配置文件即可。")
+	fmt.Fprintf(os.Stderr, "  Model mặc định: %s\n", modelName)
+	fmt.Fprintln(os.Stderr, "  Mẹo: có thể chạy /model translator hoặc sửa file cấu hình để gán riêng model cho từng vai trò.")
 	if rulesDir != "" {
-		fmt.Fprintf(os.Stderr, "  全局写作偏好可放 %s 下的 .md 文件（见其中 README.txt）\n", rulesDir)
+		fmt.Fprintf(os.Stderr, "  Quy tắc viết chung toàn cục đặt trong thư mục %s (*.md, xem README.txt bên trong)\n", rulesDir)
 	}
 	fmt.Fprintln(os.Stderr)
 
@@ -210,7 +215,7 @@ func maskKey(key string) string {
 
 func runProviderSelect() (setupProvider, error) {
 	m := setupSelectModel{
-		title: "[1/4] 选择 Provider",
+		title: "[1/4] Chọn Provider",
 		items: setupProviders,
 	}
 	p := tea.NewProgram(m, tea.WithOutput(os.Stderr))
@@ -220,20 +225,20 @@ func runProviderSelect() (setupProvider, error) {
 	}
 	result := final.(setupSelectModel)
 	if result.cancelled {
-		return setupProvider{}, fmt.Errorf("setup cancelled")
+		return setupProvider{}, fmt.Errorf("đã hủy thiết lập")
 	}
 	return result.items[result.cursor], nil
 }
 
 var apiTypeOptions = []setupProvider{
-	{name: "openai", label: "OpenAI 兼容"},
-	{name: "anthropic", label: "Anthropic 兼容"},
-	{name: "gemini", label: "Gemini 兼容"},
+	{name: "openai", label: "Chuẩn OpenAI (OpenAI-compatible)"},
+	{name: "anthropic", label: "Chuẩn Anthropic (Claude-compatible)"},
+	{name: "gemini", label: "Chuẩn Gemini (Google AI)"},
 }
 
 func runTypeSelect() (string, error) {
 	m := setupSelectModel{
-		title: "API 协议类型",
+		title: "Loại giao thức API",
 		items: apiTypeOptions,
 	}
 	p := tea.NewProgram(m, tea.WithOutput(os.Stderr))
@@ -243,7 +248,7 @@ func runTypeSelect() (string, error) {
 	}
 	result := final.(setupSelectModel)
 	if result.cancelled {
-		return "", fmt.Errorf("setup cancelled")
+		return "", fmt.Errorf("đã hủy thiết lập")
 	}
 	return result.items[result.cursor].name, nil
 }
@@ -261,7 +266,7 @@ func runOptionalTextInput(label, placeholder string) (string, error) {
 	}
 	result := final.(setupInputModel)
 	if result.cancelled {
-		return "", fmt.Errorf("setup cancelled")
+		return "", fmt.Errorf("đã hủy thiết lập")
 	}
 	return utils.CleanInputLine(result.value), nil
 }
@@ -275,7 +280,7 @@ func runTextInputWithDefault(label, placeholder, defaultValue string) (string, e
 	}
 	result := final.(setupInputModel)
 	if result.cancelled {
-		return "", fmt.Errorf("setup cancelled")
+		return "", fmt.Errorf("đã hủy thiết lập")
 	}
 	if result.value == "" && result.defaultValue != "" {
 		return result.defaultValue, nil
@@ -335,7 +340,7 @@ func (m setupSelectModel) View() string {
 		}
 		b.WriteString(cursor + label + "\n")
 	}
-	b.WriteString(setupDimStyle.Render("\n  ↑↓ 选择  Enter 确认  Esc 取消"))
+	b.WriteString(setupDimStyle.Render("\n  ↑↓ Chọn  Enter Xác nhận  Esc Hủy"))
 	return b.String()
 }
 
@@ -390,7 +395,7 @@ func (m setupInputModel) View() string {
 		b.WriteString(m.value)
 		b.WriteString(setupCursorStyle.Render("▌"))
 	}
-	b.WriteString(setupDimStyle.Render("  (Enter 确认, Esc 取消)"))
+	b.WriteString(setupDimStyle.Render("  (Enter Xác nhận, Esc Hủy)"))
 	b.WriteString("\n")
 	return b.String()
 }

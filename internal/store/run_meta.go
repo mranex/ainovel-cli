@@ -65,12 +65,18 @@ func (s *RunMetaStore) Init(style, provider, model string) error {
 			meta.AdvanceMode = existing.AdvanceMode
 			meta.AdvancePermitChapter = existing.AdvancePermitChapter
 			meta.AdvanceHold = existing.AdvanceHold
+			meta.Translation = existing.Translation
 		}
 		if meta.AdvanceMode == "" {
 			meta.AdvanceMode = domain.ChapterAdvanceAuto
 		}
 		if err := validateAdvanceControl(meta); err != nil {
 			return err
+		}
+		if meta.Translation != nil {
+			if err := meta.Translation.Validate(); err != nil {
+				return err
+			}
 		}
 		return s.saveUnlocked(meta)
 	})
@@ -277,4 +283,44 @@ func (s *RunMetaStore) SetPlanStart(rec domain.PlanStartRecord) error {
 		meta.PlanStart = &rec
 		return s.saveUnlocked(*meta)
 	})
+}
+
+// SetTranslationProfile lưu bộ công tắc dịch Việt riêng cho cuốn truyện hiện tại.
+func (s *RunMetaStore) SetTranslationProfile(profile domain.TranslationProfile) error {
+	if err := profile.Validate(); err != nil {
+		return err
+	}
+	norm := profile.Normalized()
+	return s.io.WithWriteLock(func() error {
+		meta, err := s.loadUnlocked()
+		if err != nil {
+			return err
+		}
+		if meta == nil {
+			meta = &domain.RunMeta{AdvanceMode: domain.ChapterAdvanceAuto}
+		}
+		meta.Translation = &norm
+		return s.saveUnlocked(*meta)
+	})
+}
+
+// LoadTranslationProfile đọc bộ công tắc dịch của truyện, ghép fallback cho các trường chưa đặt.
+func (s *RunMetaStore) LoadTranslationProfile(fallback domain.TranslationProfile) (domain.TranslationProfile, error) {
+	meta, err := s.Load()
+	if err != nil {
+		return fallback.Normalized(), err
+	}
+	out := fallback
+	if meta != nil && meta.Translation != nil {
+		if meta.Translation.Genre != "" {
+			out.Genre = meta.Translation.Genre
+		}
+		if meta.Translation.Tone != "" {
+			out.Tone = meta.Translation.Tone
+		}
+		if meta.Translation.AutoTranslate != "" {
+			out.AutoTranslate = meta.Translation.AutoTranslate
+		}
+	}
+	return out.Normalized(), nil
 }

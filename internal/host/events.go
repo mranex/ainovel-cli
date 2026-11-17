@@ -2,6 +2,8 @@ package host
 
 import (
 	"time"
+
+	"github.com/voocel/ainovel-cli/internal/host/trans"
 )
 
 // Event 是 TUI 消费的结构化事件。
@@ -74,6 +76,7 @@ type UISnapshot struct {
 	RecoveryLabel        string
 	IsRunning            bool
 	Agents               []AgentSnapshot
+	Translation          trans.StatusSummary
 
 	// 累计用量（整个会话，跨所有 agent 与模型切换）
 	TotalInputTokens      int

@@ -27,7 +27,7 @@ func (t *SaveVolumeSummaryTool) Name() string { return "save_volume_summary" }
 func (t *SaveVolumeSummaryTool) Description() string {
 	return "保存卷级摘要（长篇模式，卷结束时调用）"
 }
-func (t *SaveVolumeSummaryTool) Label() string { return "保存卷摘要" }
+func (t *SaveVolumeSummaryTool) Label() string { return "Lưu tóm tắt Quyển" }
 
 // 写工具，禁止并发。
 func (t *SaveVolumeSummaryTool) ReadOnly(_ json.RawMessage) bool        { return false }

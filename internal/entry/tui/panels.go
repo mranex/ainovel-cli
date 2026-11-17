@@ -13,7 +13,7 @@ import (
 func renderTopBar(snap host.UISnapshot, width int, spinnerFrame, version string) string {
 	bookTitle := snap.BookTitle
 	if bookTitle == "" {
-		bookTitle = "未定书名"
+		bookTitle = "Chưa đặt tên truyện"
 	}
 
 	var infoParts []string
@@ -157,10 +157,10 @@ func renderWelcome(width, height int, errMsg string, mode startupMode, importHin
 
 	// 功能亮点
 	features := []struct{ icon, label, desc string }{
-		{">>", "多模型协作", "Architect 规划 / Writer 创作 / Editor 审阅"},
-		{"::", "断点恢复", "崩溃或中断后从上次进度自动续写"},
-		{"<>", "实时干预", "创作过程中随时调整剧情走向"},
-		{"##", "分层长篇", "支持卷-弧-章分层结构的长篇创作"},
+		{">>", "Đa model phối hợp", "Architect lập dàn ý / Writer viết / Editor thẩm định / Translator dịch Việt"},
+		{"::", "Khôi phục tức thì", "Tự động nối lại đúng tiến độ sau sự cố hoặc tạm dừng"},
+		{"<>", "Can thiệp trực tiếp", "Chỉnh sửa hướng truyện theo thời gian thực ngay bằng tiếng Việt"},
+		{"##", "Trường thiên phân tầng", "Hỗ trợ cấu trúc Quyển - Arc - Chương cho tiểu thuyết dài kỳ"},
 	}
 	iconStyle := lipgloss.NewStyle().Foreground(colorAccent2).Bold(true)
 	featLabelStyle := lipgloss.NewStyle().Foreground(bodyTextColor)
@@ -175,17 +175,17 @@ func renderWelcome(width, height int, errMsg string, mode startupMode, importHin
 	feats := strings.Join(featLines, "\n")
 
 	// 输入提示
-	prompt := lipgloss.NewStyle().Foreground(bodyTextColor).Render("在下方输入你的小说需求开始创作")
+	prompt := lipgloss.NewStyle().Foreground(bodyTextColor).Render("Nhập ý tưởng hoặc yêu cầu viết truyện bên dưới để bắt đầu")
 
 	modeLine := lipgloss.NewStyle().
 		Foreground(colorMuted).
-		Render("当前模式：" + mode.label() + " · " + mode.subtitle())
+		Render("Chế độ hiện tại: " + mode.label() + " · " + mode.subtitle())
 
 	// 示例
 	examples := []string{
-		"写一部 12 章都市悬疑小说，主角是一名女法医",
-		"创作一部仙侠长篇，主角从凡人修炼至飞升",
-		"写一个科幻短篇，讲述 AI 觉醒后的伦理困境",
+		"Viết bộ tiên hiệp 50 chương, nhân vật chính xuất thân từ ngoại môn",
+		"Sáng tác dark fantasy 18+ phong cách phương Tây, nhịp nhanh, chặt chém",
+		"Viết bộ trinh thám đô thị hiện đại 12 chương, nhân vật chính là nữ pháp y",
 	}
 	exStyle := lipgloss.NewStyle().Foreground(colorAccent)
 	dotStyle := lipgloss.NewStyle().Foreground(colorDim)
@@ -220,7 +220,7 @@ func renderWelcome(width, height int, errMsg string, mode startupMode, importHin
 			Render("! " + importHint))
 	} else {
 		b.WriteString(lipgloss.NewStyle().Foreground(colorDim).
-			Render("已有设定/大纲？/start <文件路径> 创建新书 · 已有小说存稿？/import <文件路径> 导入续写"))
+			Render("Đã có dàn ý? /start <file> tạo truyện · Có bản thảo cũ? /import <file> · Bật dịch/18+: /trans"))
 	}
 	if updateHint != "" {
 		// 启动版本检查命中新版本：与 importHint 同款强调样式追加一行。
@@ -230,7 +230,7 @@ func renderWelcome(width, height int, errMsg string, mode startupMode, importHin
 	}
 	b.WriteString("\n\n")
 	b.WriteString(lipgloss.NewStyle().Foreground(colorDim).Italic(true).
-		Render("Tab 切换模式 · 快速开始下 Enter 直接创作 · 共创规划下 Enter 进入对话"))
+		Render("Tab đổi chế độ · Nhấn Enter để bắt đầu nhanh hoặc vào Đồng sáng tạo"))
 
 	if errMsg != "" {
 		b.WriteString("\n\n")

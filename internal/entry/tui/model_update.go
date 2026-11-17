@@ -74,8 +74,12 @@ func (m Model) handleOverlayKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 		return m.handleBlockingModalKey(msg, m.handleModelConfigKey)
 	case m.help != nil:
 		return m.handleBlockingModalKey(msg, m.handleHelpKey)
+	case m.reader != nil:
+		return m.handleBlockingModalKey(msg, m.handleReaderKey)
 	case m.modelSwitch != nil:
 		return m.handleBlockingModalKey(msg, m.handleModelSwitchKey)
+	case m.transSwitch != nil:
+		return m.handleBlockingModalKey(msg, m.handleTransSwitchKey)
 	case m.report != nil:
 		return m.handleBlockingModalKey(msg, m.handleReportKey)
 	case m.importer != nil:
@@ -122,7 +126,7 @@ func (m Model) toggleMouseReporting() (Model, tea.Cmd) {
 }
 
 // donePlaceholder 完成态输入框提示：会话内完结（doneMsg）与重启进完结书（bootstrap）共用。
-const donePlaceholder = "创作已完成 · 可输入返工要求(如\"重写第3章\")、/reopen 续写新卷、/export 导出"
+const donePlaceholder = "Đã hoàn tất · Nhập yêu cầu sửa (vd \"viết lại ch.3\"), /reopen viết tiếp, /translate dịch, /export xuất"
 
 // enterRunning 进入创作工作台：开启鼠标上报（工作台需要点击切面板 / 滚轮 /
 // 拖拽侧边栏）。返回的命令需由调用方 Batch 进最终返回值。
@@ -390,7 +394,12 @@ func (m Model) handleMouseMsg(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, cmd
 	}
-	if m.modelSwitch != nil || m.modelConfig != nil {
+	if m.reader != nil {
+		var cmd tea.Cmd
+		m.reader.viewport, cmd = m.reader.viewport.Update(msg)
+		return m, cmd
+	}
+	if m.modelSwitch != nil || m.modelConfig != nil || m.transSwitch != nil {
 		return m, nil
 	}
 	if pane, ok := m.paneAtMouse(msg.X, msg.Y); ok {
@@ -475,7 +484,7 @@ func (m Model) handleRuntimeMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		}
 		return m, fetchSnapshot(m.runtime), true
 	case snapshotMsg:
-		next := host.UISnapshot(msg)
+		next := localizeSnapshotVi(host.UISnapshot(msg))
 		// 启动期 Host 尚未进入 running（规则归一化/启动裁定都在 StartPrepared 之前或之中），
 		// 直接套用快照会把工作台显示成"空闲"，让正在进行的启动看起来像卡死。
 		if m.starting {
@@ -514,14 +523,14 @@ func (m Model) handleRuntimeMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			m.snapshot.RuntimeState = "paused"
 			m.syncRuntimePlaceholder()
 		} else {
-			m.textarea.Placeholder = "运行中断，输入任意内容恢复创作"
+			m.textarea.Placeholder = "Phiên viết bị gián đoạn, nhập nội dung bất kỳ để nối lại"
 		}
 		return m, tea.Batch(fetchSnapshot(m.runtime), listenDone(m.runtime)), true
 	case abortResultMsg:
 		// Done 可能先于暂停命令回执到达；已经结束时不能重新进入暂停中。
 		if msg.stopped && m.snapshot.IsRunning {
 			m.abortPending = true
-			m.textarea.Placeholder = "正在暂停创作..."
+			m.textarea.Placeholder = "Đang tạm dừng sáng tác..."
 		}
 		return m, nil, true
 	case reportLoadedMsg:
@@ -577,7 +586,7 @@ func (m Model) handleRuntimeMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case exportDoneMsg:
 		if msg.err != nil {
 			m.applyEvent(host.Event{
-				Time: time.Now(), Category: "ERROR", Summary: "导出失败：" + msg.err.Error(), Level: "error",
+				Time: time.Now(), Category: "ERROR", Summary: "Xuất file thất bại: " + msg.err.Error(), Level: "error",
 			})
 		} else if msg.result != nil {
 			m.applyEvent(host.Event{
@@ -588,9 +597,9 @@ func (m Model) handleRuntimeMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		return m, nil, true
 	case updateCheckMsg:
 		if msg.err != nil {
-			message := "启动版本检查失败"
+			message := "Kiểm tra phiên bản khi khởi động thất bại"
 			if msg.result != nil {
-				message = "启动版本检查完成，但缓存存在异常"
+				message = "Đã kiểm tra phiên bản, nhưng cache gặp lỗi"
 			}
 			slog.Warn(message, "module", "version", "err", msg.err)
 		}
@@ -608,11 +617,11 @@ func (m Model) handleRuntimeMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		return m, nil, true
 	case revisionDoneMsg:
 		if msg.err != nil {
-			m.applyEvent(host.Event{Time: time.Now(), Category: "ERROR", Summary: "章节同步失败：" + msg.err.Error(), Level: "error"})
+			m.applyEvent(host.Event{Time: time.Now(), Category: "ERROR", Summary: "Đồng bộ chương thất bại: " + msg.err.Error(), Level: "error"})
 		} else if msg.checkOnly {
-			summary := "未检测到章节外部修改"
+			summary := "Không phát hiện chỉnh sửa bên ngoài trên các chương"
 			if len(msg.chapters) > 0 {
-				summary = fmt.Sprintf("检测到章节正文已被外部修改：%v；执行 /sync 接纳", msg.chapters)
+				summary = fmt.Sprintf("Phát hiện nội dung chương đã bị sửa bên ngoài: %v; chạy /sync để tiếp nhận", msg.chapters)
 			}
 			m.applyEvent(host.Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: "info"})
 		} else {
@@ -638,11 +647,11 @@ func (m Model) handleRuntimeMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		m.modelConfig.testing = false
 		m.modelConfig.testCancel = nil
 		if errors.Is(msg.err, context.Canceled) {
-			m.modelConfig.message = "连接测试已取消"
+			m.modelConfig.message = "Đã hủy kiểm tra kết nối"
 		} else if msg.err != nil {
 			m.modelConfig.message = msg.err.Error()
 		} else {
-			m.modelConfig.message = "连接测试成功：" + msg.model
+			m.modelConfig.message = "Kiểm tra kết nối thành công: " + msg.model
 		}
 		return m, nil, true
 	case startResultMsg:
@@ -745,7 +754,8 @@ func (m Model) handleRuntimeMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 }
 
 func sameDetailSnapshot(a, b host.UISnapshot) bool {
-	return a.Synopsis == b.Synopsis &&
+	return a.BookTitle == b.BookTitle &&
+		a.Synopsis == b.Synopsis &&
 		a.Premise == b.Premise &&
 		a.Layered == b.Layered &&
 		a.CurrentVolumeArc == b.CurrentVolumeArc &&
@@ -757,6 +767,7 @@ func sameDetailSnapshot(a, b host.UISnapshot) bool {
 		a.InProgressChapter == b.InProgressChapter &&
 		a.LastCommitSummary == b.LastCommitSummary &&
 		a.LastReviewSummary == b.LastReviewSummary &&
+		a.Translation == b.Translation &&
 		slices.Equal(a.Outline, b.Outline) &&
 		slices.Equal(a.Characters, b.Characters) &&
 		slices.Equal(a.RecentSupporting, b.RecentSupporting) &&
@@ -785,7 +796,7 @@ func (m Model) handleStartResultMsg(msg startResultMsg) (tea.Model, tea.Cmd) {
 			m.mode = modeRunning
 			m.snapshot.IsRunning = false
 			m.snapshot.RuntimeState = "idle"
-			m.textarea.Placeholder = "启动失败，请检查模型配置或使用 /model 切换模型"
+			m.textarea.Placeholder = "Khởi động thất bại, hãy kiểm tra cấu hình hoặc chạy /model để đổi model"
 			m.refreshStreamViewport()
 			m.refreshStateViewport()
 			return m, m.textarea.Focus()
@@ -818,10 +829,10 @@ func (m *Model) enterStarting(rawPrompt string) tea.Cmd {
 	enableMouse := m.enterRunning()
 	m.resetOutputPanels()
 	m.resizeTextarea()
-	m.textarea.Placeholder = "正在初始化创作..."
+	m.textarea.Placeholder = "Đang khởi tạo sáng tác..."
 	m.applyStartupPromptEvent(rawPrompt)
 	m.applyEvent(host.Event{
-		Time: time.Now(), Category: "SYSTEM", Summary: "正在初始化创作", Level: "info",
+		Time: time.Now(), Category: "SYSTEM", Summary: "Đang khởi tạo sáng tác", Level: "info",
 	})
 	m.refreshEventViewport()
 	m.refreshStreamViewport()
@@ -837,7 +848,7 @@ func (m *Model) applyStartupPromptEvent(rawPrompt string) {
 	m.applyEvent(host.Event{
 		Time:     time.Now(),
 		Category: "USER",
-		Summary:  "创作需求: " + truncate(text, maxPromptEventCols),
+		Summary:  "Yêu cầu sáng tác: " + truncate(text, maxPromptEventCols),
 		Detail:   text,
 		Level:    "info",
 	})
@@ -879,6 +890,7 @@ func (m *Model) applyEvent(ev host.Event) {
 // - 新事件 → 追加，必要时记录到 eventIndex
 // - 超过 maxEvents 时做滑动截断并重建索引
 func (m *Model) applyEventProjection(ev host.Event) {
+	ev = localizeEventVi(ev)
 	if ev.ID != "" {
 		if idx, ok := m.eventIndex[ev.ID]; ok && idx >= 0 && idx < len(m.events) {
 			// 模型响应只在等待时占一行：成功返回后由随后的工具行接续，不留痕迹；失败保留。

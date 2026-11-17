@@ -173,10 +173,10 @@ func TestRetryCountdown(t *testing.T) {
 	if got := retryCountdown(now.Add(-time.Second), now); got != "" {
 		t.Fatalf("已到点应返回空，得 %q", got)
 	}
-	if got := retryCountdown(now.Add(7500*time.Millisecond), now); got != "8s 后重试" {
+	if got := retryCountdown(now.Add(7500*time.Millisecond), now); got != "thử lại sau 8s" {
 		t.Fatalf("7.5s 应上取整为 8s，得 %q", got)
 	}
-	if got := retryCountdown(now.Add(300*time.Millisecond), now); got != "1s 后重试" {
+	if got := retryCountdown(now.Add(300*time.Millisecond), now); got != "thử lại sau 1s" {
 		t.Fatalf("不足 1s 应显示 1s，得 %q", got)
 	}
 }

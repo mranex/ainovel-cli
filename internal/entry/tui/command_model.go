@@ -35,23 +35,24 @@ type modelRoleOption struct {
 }
 
 var modelRoleOptions = []modelRoleOption{
-	{Key: "default", Label: "默认"},
+	{Key: "default", Label: "Mặc định"},
 
-	{Key: "architect", Label: "Architect"},
-	{Key: "writer", Label: "Writer"},
-	{Key: "editor", Label: "Editor"},
+	{Key: "architect", Label: "Architect (Kiến trúc & Dàn ý)"},
+	{Key: "writer", Label: "Writer (Viết văn)"},
+	{Key: "editor", Label: "Editor (Biên tập & Thẩm định)"},
+	{Key: "translator", Label: "Translator (Dịch Việt)"},
 }
 
 type thinkingOption struct{ Key, Label string }
 
 var allThinkingOptions = []thinkingOption{
-	{"", "默认(继承)"},
-	{"off", "关闭"},
-	{"low", "低"},
-	{"medium", "中"},
-	{"high", "高"},
-	{"xhigh", "极高"},
-	{"max", "最高"},
+	{"", "Mặc định (kế thừa)"},
+	{"off", "Tắt"},
+	{"low", "Thấp"},
+	{"medium", "Trung bình"},
+	{"high", "Cao"},
+	{"xhigh", "Rất cao"},
+	{"max", "Tối đa"},
 }
 
 func thinkingOptionsFor(rt modelRuntime, role string) []thinkingOption {
@@ -105,7 +106,7 @@ func newModelSwitchState(rt modelRuntime, roleHint string) *modelSwitchState {
 		providers: rt.ConfiguredProviders(),
 	}
 	if len(state.providers) == 0 {
-		state.message = "当前没有可用 provider"
+		state.message = "Hiện chưa có provider khả dụng"
 	}
 
 	roleHint = normalizeRoleKey(roleHint)
@@ -123,7 +124,7 @@ func normalizeRoleKey(role string) string {
 	switch strings.ToLower(strings.TrimSpace(role)) {
 	case "", "default":
 		return "default"
-	case "architect", "writer", "editor":
+	case "architect", "writer", "editor", "translator":
 		return strings.ToLower(strings.TrimSpace(role))
 	default:
 		return ""
@@ -249,10 +250,10 @@ func (s *modelSwitchState) syncThinking(rt modelRuntime) {
 
 func (s *modelSwitchState) apply(rt modelRuntime) error {
 	if len(s.providers) == 0 {
-		return fmt.Errorf("当前没有可用 provider")
+		return fmt.Errorf("hiện chưa có provider khả dụng")
 	}
 	if len(s.models) == 0 {
-		return fmt.Errorf("provider %q 没有已配置模型", s.provider())
+		return fmt.Errorf("provider %q chưa cấu hình model nào", s.provider())
 	}
 	wantThinking := s.thinkingKey()
 	if err := rt.SwitchModel(s.role(), s.provider(), s.model()); err != nil {
@@ -311,16 +312,16 @@ func renderModelSwitchBar(width int, state *modelSwitchState) string {
 	title := lipgloss.NewStyle().
 		Foreground(colorMuted).
 		Bold(true).
-		Render("/model 切换模型")
+		Render("/model Đổi model")
 
-	row1 := renderModelField("角色", state.roleLabel(), state.focus == modelFocusRole)
+	row1 := renderModelField("Vai trò", state.roleLabel(), state.focus == modelFocusRole)
 	row2 := renderModelField("Provider", state.provider(), state.focus == modelFocusProvider)
-	row3 := renderModelField("模型", state.modelLabel(), state.focus == modelFocusModel)
-	row4 := renderModelField("推理强度", state.thinkingLabel(), state.focus == modelFocusThinking)
+	row3 := renderModelField("Model", state.modelLabel(), state.focus == modelFocusModel)
+	row4 := renderModelField("Suy luận", state.thinkingLabel(), state.focus == modelFocusThinking)
 	hint := lipgloss.NewStyle().
 		Foreground(colorDim).
 		Italic(true).
-		Render("Tab 切字段   ←→ 切选项   Enter 应用   Esc 取消")
+		Render("Tab đổi dòng   ←→ đổi lựa chọn   Enter áp dụng   Esc hủy")
 	lines := []string{
 		row1,
 		row2,
@@ -335,14 +336,14 @@ func renderModelSwitchBar(width int, state *modelSwitchState) string {
 	content := strings.Join(lines, "\n")
 	boxW := lipgloss.Width(content) + 8
 	maxW := width - 2
-	if maxW > 68 {
-		maxW = 68
+	if maxW > 72 {
+		maxW = 72
 	}
 	if boxW > maxW {
 		boxW = maxW
 	}
-	if boxW < 56 {
-		boxW = 56
+	if boxW < 58 {
+		boxW = 58
 	}
 
 	innerW := boxW - 2
@@ -371,7 +372,7 @@ func renderModelSwitchBar(width int, state *modelSwitchState) string {
 
 func renderModelField(label, value string, focused bool) string {
 	if strings.TrimSpace(value) == "" {
-		value = "未设置"
+		value = "Chưa thiết lập"
 	}
 	labelText := lipgloss.NewStyle().
 		Foreground(colorMuted).

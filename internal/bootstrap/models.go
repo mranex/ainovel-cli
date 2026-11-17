@@ -364,6 +364,15 @@ func createModelFromConfig(providerKey, model string, pc ProviderConfig, cache m
 		return m, nil
 	}
 
+	if isOpenCodeEndpoint(providerKey, pc) {
+		m, err := createOpenCodeModel(providerKey, model, pc)
+		if err != nil {
+			return nil, err
+		}
+		cache[cacheKey] = m
+		return m, nil
+	}
+
 	providerType, err := pc.ProviderType(providerKey)
 	if err != nil {
 		return nil, fmt.Errorf("解析 provider 类型失败: %w", err)

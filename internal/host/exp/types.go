@@ -18,6 +18,20 @@ const (
 	FormatEPUB Format = "epub"
 )
 
+// Lang 标识导出语言。
+type Lang string
+
+const (
+	// LangAuto 留空时自动检测：目标范围已有译本则导出越南语，否则回退中文原稿。
+	LangAuto Lang = ""
+	// LangVI 仅导出越南语译本（缺失章节回退中文并记录到 Result.Untranslated）。
+	LangVI Lang = "vi"
+	// LangZH 导出中文原稿。
+	LangZH Lang = "zh"
+	// LangBilingual 导出越中双语对照版本（逐章先越后中）。
+	LangBilingual Lang = "bilingual"
+)
+
 // Options 控制导出行为。zero-value 等价于"导出全本到默认路径，文件存在时报错"。
 //
 // 版式：《书名》 → 卷分隔 → 章节正文。两类内部数据不进导出：premise（创作蓝图，
@@ -37,6 +51,9 @@ type Options struct {
 
 	// Overwrite 文件存在时是否覆盖；默认拒绝。
 	Overwrite bool
+
+	// Lang 指定导出语言（留空/auto 时自动检测，vi 优先）。
+	Lang Lang
 }
 
 // Deps 是 Run 所需依赖。仅 store；导出无需 LLM、prompt、bundle。
@@ -54,4 +71,8 @@ type Result struct {
 	Bytes int
 	// Skipped 落在请求范围内但未完成的章节号。
 	Skipped []int
+	// Lang 实际生效的导出语言。
+	Lang Lang
+	// Untranslated 在 LangVI/LangBilingual 模式下尚未有越语译本、回退中文的章节号。
+	Untranslated []int
 }

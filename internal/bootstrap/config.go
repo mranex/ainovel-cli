@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/voocel/agentcore/llm"
+	"github.com/voocel/ainovel-cli/internal/domain"
 	"github.com/voocel/ainovel-cli/internal/errs"
 	"github.com/voocel/ainovel-cli/internal/models"
 	"github.com/voocel/ainovel-cli/internal/notify"
@@ -152,14 +154,20 @@ func (pc ProviderConfig) RequiresAPIKey(name string) bool {
 	case "ollama", "bedrock":
 		return false
 	}
+	if IsOpenCodeProvider(name) && strings.TrimSpace(os.Getenv("OPENCODE_API_KEY")) != "" {
+		return false
+	}
 	return pc.Type == ""
 }
 
 // ProviderType 返回有效的 API 协议类型。
-// 优先使用显式 Type；否则要求 provider 名本身已在 litellm 注册表中。
+// 优先使用显式 Type；否则要求 provider 名本身已在 litellm 注册表中或属于内置扩展 provider。
 func (pc ProviderConfig) ProviderType(name string) (string, error) {
 	if pc.Type != "" {
 		return pc.Type, nil
+	}
+	if IsOpenCodeProvider(name) {
+		return strings.ToLower(strings.TrimSpace(name)), nil
 	}
 	if llm.IsProviderRegistered(name) {
 		return name, nil
@@ -191,9 +199,17 @@ var knownRoles = map[string]bool{
 	"architect":         true,
 	"writer":            true,
 	"editor":            true,
+	"translator":        true,
 	"import_segment":    true,
 	"import_analyze":    true,
 	"import_synthesize": true,
+}
+
+// TranslateConfig lưu cấu hình dịch tiếng Việt mặc định trong config.json.
+type TranslateConfig struct {
+	Genre         string `json:"genre,omitempty"`          // auto / tien_hiep / co_trang / fantasy / hien_dai
+	Tone          string `json:"tone,omitempty"`           // normal / mature
+	AutoTranslate string `json:"auto_translate,omitempty"` // after_arc / after_commit / manual
 }
 
 // Config 小说应用配置。
@@ -216,6 +232,9 @@ type Config struct {
 
 	// 创作参数
 	Style string `json:"style,omitempty"`
+
+	// Translate cấu hình dịch tiếng Việt mặc định cho các truyện mới.
+	Translate TranslateConfig `json:"translate,omitempty"`
 
 	// ContextWindow 是旧版全局上下文窗口，保留为模型专属 context_window 之后的
 	// 兼容回退。仅影响压缩阈值，不改变 LLM API 实际请求长度。
@@ -307,7 +326,7 @@ func (c *Config) ValidateBase() error {
 			return err
 		}
 		if !knownRoles[role] {
-			return fmt.Errorf("unknown role %q in roles config (valid: architect/writer/editor/import_segment/import_analyze/import_synthesize): %w", role, errs.ErrConfig)
+			return fmt.Errorf("unknown role %q in roles config (valid: architect/writer/editor/translator/import_segment/import_analyze/import_synthesize): %w", role, errs.ErrConfig)
 		}
 		if rc.Provider == "" || rc.Model == "" {
 			return fmt.Errorf("role %q must have both provider and model: %w", role, errs.ErrConfig)
@@ -352,7 +371,25 @@ func (c *Config) ValidateBase() error {
 		}
 	}
 
+	if err := c.DefaultTranslationProfileRaw().Validate(); err != nil {
+		return fmt.Errorf("translate config: %w: %w", err, errs.ErrConfig)
+	}
+
 	return nil
+}
+
+// DefaultTranslationProfileRaw trả về profile dịch thô (chưa điền giá trị mặc định cho trường rỗng) để Validate kiểm tra.
+func (c Config) DefaultTranslationProfileRaw() domain.TranslationProfile {
+	return domain.TranslationProfile{
+		Genre:         domain.TranslationGenre(strings.TrimSpace(c.Translate.Genre)),
+		Tone:          domain.TranslationTone(strings.TrimSpace(c.Translate.Tone)),
+		AutoTranslate: domain.AutoTranslateMode(strings.TrimSpace(c.Translate.AutoTranslate)),
+	}
+}
+
+// DefaultTranslationProfile trả về cấu hình dịch mặc định đã chuẩn hóa.
+func (c Config) DefaultTranslationProfile() domain.TranslationProfile {
+	return c.DefaultTranslationProfileRaw().Normalized()
 }
 
 func validateProviderConfigText(name string, pc ProviderConfig) error {
@@ -450,13 +487,20 @@ const (
 //
 // 注意：返回值仅用于压缩阈值计算，不会缩小 LLM API 真实可发请求长度。
 func (c Config) ResolveContextWindow(provider, modelName string) (int, ContextWindowSource) {
-	if pc, ok := c.Providers[strings.TrimSpace(provider)]; ok {
+	pc, hasProvider := c.Providers[strings.TrimSpace(provider)]
+	if hasProvider {
 		if model, found := pc.ModelConfig(modelName); found && model.ContextWindow > 0 {
 			return model.ContextWindow, CtxWindowModelConfig
 		}
 	}
 	if c.ContextWindow > 0 {
 		return c.ContextWindow, CtxWindowConfig
+	}
+	if (hasProvider && isOpenCodeEndpoint(provider, pc)) || IsOpenCodeProvider(provider) {
+		bare := models.StripOpenCodeModelPrefix(modelName)
+		if rw := models.DefaultRegistry().ResolveContextWindow("opencode-go/" + bare); rw > 0 {
+			return rw, CtxWindowRegistry
+		}
 	}
 	if rw := models.DefaultRegistry().ResolveContextWindow(modelName); rw > 0 {
 		return rw, CtxWindowRegistry
@@ -558,7 +602,7 @@ func (c Config) validateProviderAPI(owner, providerName string, pc ProviderConfi
 	if err != nil {
 		return fmt.Errorf("%s provider %q api 配置无法解析协议类型: %w", owner, providerName, err)
 	}
-	if strings.ToLower(strings.TrimSpace(providerType)) != "openai" {
+	if lower := strings.ToLower(strings.TrimSpace(providerType)); lower != "openai" && !IsOpenCodeProvider(lower) {
 		return fmt.Errorf("%s provider %q api 仅支持 OpenAI 协议 provider: %w", owner, providerName, errs.ErrConfig)
 	}
 	return nil

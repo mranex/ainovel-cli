@@ -45,13 +45,19 @@ var planStartContract = llmcontract.Contract{
 type planStartPayload struct {
 	Requirement string `json:"requirement"`
 	Style       string `json:"style,omitempty"`
+	Tone        string `json:"tone,omitempty"`
 }
 
 // DecidePlanStart 启动裁定:根据用户需求选规划师;需求过短(<20 字)时在 task 里
 // 自主补充差异化方向、目标读者与核心消费点、至少一个非常规钩子。
 // 失败语义:返回 error → 调用方显式报错中止启动(启动期用户在场,报错优于猜测)。
 func DecidePlanStart(ctx context.Context, model agentcore.ChatModel, systemPrompt, requirement, style string) (PlanStartDecision, error) {
-	payload, err := marshalPayload(planStartPayload{Requirement: requirement, Style: style})
+	return DecidePlanStartWithTone(ctx, model, systemPrompt, requirement, style, "")
+}
+
+// DecidePlanStartWithTone 启动裁定，透传当前作品的内容尺度偏好（normal / mature）。
+func DecidePlanStartWithTone(ctx context.Context, model agentcore.ChatModel, systemPrompt, requirement, style, tone string) (PlanStartDecision, error) {
+	payload, err := marshalPayload(planStartPayload{Requirement: requirement, Style: style, Tone: tone})
 	if err != nil {
 		return PlanStartDecision{}, err
 	}

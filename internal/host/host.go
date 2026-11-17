@@ -25,6 +25,7 @@ import (
 	"github.com/voocel/ainovel-cli/internal/host/exp"
 	"github.com/voocel/ainovel-cli/internal/host/imp"
 	"github.com/voocel/ainovel-cli/internal/host/sim"
+	"github.com/voocel/ainovel-cli/internal/host/trans"
 	runtimelog "github.com/voocel/ainovel-cli/internal/logger"
 	modelreg "github.com/voocel/ainovel-cli/internal/models"
 	"github.com/voocel/ainovel-cli/internal/notify"
@@ -74,6 +75,12 @@ type Host struct {
 	closeOnce       sync.Once
 	asyncWG         sync.WaitGroup
 	closing         bool
+
+	transMu          sync.Mutex
+	transRunning     bool
+	transCurrentCh   int
+	transPendingUpTo int
+	transCancel      context.CancelFunc
 
 	interMu sync.Mutex // 干预裁定 FIFO 串行(同一时刻至多一次在途咨询)
 
@@ -291,8 +298,9 @@ func New(cfg bootstrap.Config, bundle assets.Bundle, options ...NewOption) (*Hos
 		notify: func(kind, level, title, body string) {
 			h.notifier.Send(notify.Notification{Kind: kind, Level: level, Title: title, Body: body})
 		},
-		onPause: func(summary string) { h.abortWithEvent(summary, "warn") },
-		onDone:  h.runEnded,
+		onPause:    func(summary string) { h.abortWithEvent(summary, "warn") },
+		onDone:     h.runEnded,
+		onStepDone: func(inst *flow.Instruction) { h.handleStepAutoTranslate(inst) },
 	}
 
 	keepBookLease = true
@@ -414,9 +422,10 @@ func (h *Host) StartPrepared(rawRequirement string) error {
 
 	// 启动裁定:失败显式报错中止(启动期用户在场,报错优于猜测)。
 	start := time.Now()
+	tone := h.TranslationProfile().Tone
 	decision, derr := runObservedDecision(h.observer, "启动裁定", func() (arbiter.PlanStartDecision, error) {
-		return arbiter.DecidePlanStart(h.runCtx, h.arbiterModel(),
-			h.bundle.Prompts.ArbiterPlanStart, rawRequirement, h.cfg.Style)
+		return arbiter.DecidePlanStartWithTone(h.runCtx, h.arbiterModel(),
+			h.bundle.Prompts.ArbiterPlanStart, rawRequirement, h.cfg.Style, string(tone))
 	})
 	rec := storepkg.DecisionRecord{Kind: "plan_start", Decider: "arbiter", Input: rawRequirement,
 		Reason: decision.Reason, DurationMs: time.Since(start).Milliseconds()}
@@ -952,6 +961,12 @@ func (h *Host) Close() {
 		if h.runCancel != nil {
 			h.runCancel() // 中断在途的宿主侧裁定调用与 supervisor 转发
 		}
+		h.transMu.Lock()
+		transCancel := h.transCancel
+		h.transMu.Unlock()
+		if transCancel != nil {
+			transCancel()
+		}
 		if cancelExclusive != nil {
 			cancelExclusive()
 		}
@@ -1033,6 +1048,7 @@ func (h *Host) runEnded() {
 		summary := completionSummary(*progress, *book)
 		h.mu.Unlock()
 		h.emitEvent(Event{Time: time.Now(), Category: "SYSTEM", Summary: summary, Level: "success"})
+		h.maybeAutoTranslateOnComplete()
 		h.notifier.Send(notify.Notification{
 			Kind: notify.KindRunEnd, Level: "info", Title: "ainovel: 创作完成",
 			Body: h.runEndBody("", summary),
@@ -1224,9 +1240,16 @@ func (h *Host) Snapshot() UISnapshot {
 		MissingAssistantUsage:  h.usage.MissingAssistantUsage(),
 	}
 
+	snap.Translation = h.translationSnapshot()
 	if book, _ := h.store.Book.Load(); book != nil {
 		snap.BookTitle = book.Title
 		snap.Synopsis = utils.TruncateRunes(book.Synopsis, 200)
+	}
+	if snap.Translation.BookTitleVi != "" {
+		snap.BookTitle = snap.Translation.BookTitleVi
+	}
+	if snap.Translation.SynopsisVi != "" {
+		snap.Synopsis = utils.TruncateRunes(snap.Translation.SynopsisVi, 200)
 	}
 	progress, _ := h.store.Progress.Load()
 	if progress != nil {
@@ -1280,6 +1303,7 @@ func (h *Host) fillDetails(snap *UISnapshot, progress *domain.Progress) {
 				completed[chapter] = struct{}{}
 			}
 		}
+		viManifest, _ := trans.LoadManifest(h.store.Dir())
 		for _, e := range outline {
 			title := e.Title
 			if _, ok := completed[e.Chapter]; ok {
@@ -1288,6 +1312,11 @@ func (h *Host) fillDetails(snap *UISnapshot, progress *domain.Progress) {
 					slog.Warn("章节标题投影失败", "module", "host.snapshot", "chapter", e.Chapter, "err", err)
 				} else if strings.TrimSpace(committedTitle) != "" {
 					title = committedTitle
+				}
+			}
+			if viManifest != nil {
+				if entry, ok := viManifest.Chapters[e.Chapter]; ok && strings.TrimSpace(entry.TitleVi) != "" {
+					title = strings.TrimSpace(entry.TitleVi)
 				}
 			}
 			snap.Outline = append(snap.Outline, OutlineSnapshot{
@@ -1552,13 +1581,23 @@ func (h *Host) ReplayQueue(afterSeq int64) ([]domain.RuntimeQueueItem, error) {
 
 // CoCreateStream 冷启动共创：从零澄清需求，产出整本书的创作指令。
 func (h *Host) CoCreateStream(ctx context.Context, history []CoCreateMessage, onProgress func(kind, text string)) (CoCreateReply, error) {
-	return coCreateStream(ctx, h.models, h.store.Sessions, coCreateSystemPrompt, history, onProgress)
+	var sessions *storepkg.SessionStore
+	if h.store != nil {
+		sessions = h.store.Sessions
+	}
+	sysPrompt := coCreateTonePrompt(coCreateSystemPrompt, h.TranslationProfile().Tone)
+	return coCreateStream(ctx, h.models, sessions, sysPrompt, history, onProgress)
 }
 
 // StageCoCreateStream 阶段共创：在已写内容的基础上规划后续方向。
 // 系统提示 = 阶段 prompt + 当前故事状态摘要，让助手知道"已经写了什么"。
 func (h *Host) StageCoCreateStream(ctx context.Context, history []CoCreateMessage, onProgress func(kind, text string)) (CoCreateReply, error) {
-	return coCreateStream(ctx, h.models, h.store.Sessions, stageSystemPrompt(h.store), history, onProgress)
+	var sessions *storepkg.SessionStore
+	if h.store != nil {
+		sessions = h.store.Sessions
+	}
+	sysPrompt := coCreateTonePrompt(stageSystemPrompt(h.store), h.TranslationProfile().Tone)
+	return coCreateStream(ctx, h.models, sessions, sysPrompt, history, onProgress)
 }
 
 // stagePlanPrefix 把共创产出的"后续方向 brief"包装成一条阶段规划干预，交 Arbiter 裁定。

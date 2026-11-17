@@ -22,7 +22,7 @@ func (t *ReadChapterTool) Name() string { return "read_chapter" }
 func (t *ReadChapterTool) Description() string {
 	return "读取章节原文。可读终稿、草稿，或提取角色对话片段"
 }
-func (t *ReadChapterTool) Label() string { return "读取章节" }
+func (t *ReadChapterTool) Label() string { return "Đọc chương" }
 
 // 纯读工具，可被并发调度（editor 审阅时常一次读多章）。
 func (t *ReadChapterTool) ReadOnly(_ json.RawMessage) bool        { return true }

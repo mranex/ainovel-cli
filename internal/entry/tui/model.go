@@ -56,6 +56,8 @@ type Model struct {
 	help               *helpState
 	modelSwitch        *modelSwitchState
 	modelConfig        *modelConfigState
+	transSwitch        *transSwitchState
+	reader             *chapterReaderState
 	report             *reportState
 	version            string
 	importer           *importState
@@ -450,51 +452,51 @@ func (m *Model) textareaIsMultiline() bool {
 func (m *Model) inputHints() string {
 	dimStyle := lipgloss.NewStyle().Foreground(colorDim)
 	if m.quitPending {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Bold(true).Render("Press Ctrl+C again to exit")
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Bold(true).Render("Bấm Ctrl+C lần nữa để thoát")
 	}
 	limitHint := m.inputLimitHint()
 	// 欢迎页(modeNew)不开鼠标上报，终端原生拖拽即可复制，无需 Ctrl+R 提示；
 	// 工作台才开上报，复制需 Ctrl+R 临时关闭。
-	suffix := limitHint + " · Ctrl+R 切到选中复制模式"
+	suffix := limitHint + " · Ctrl+R Bật chế độ bôi đen copy"
 	if m.mode == modeNew {
 		suffix = limitHint
 	}
 	if m.mouseOff && m.mode != modeNew {
 		// 工作台手动切到选中复制：用强调色提示当前处于"自由拖拽选中"状态，按 Ctrl+R 恢复
 		return lipgloss.NewStyle().Foreground(colorAccent).Bold(true).
-			Render("✂ 选中复制模式：可拖拽选中文本复制 · Ctrl+R 退出恢复鼠标交互")
+			Render("✂ Chế độ copy: có thể quét chuột để copy · Ctrl+R để bật lại tương tác chuột")
 	}
 	if m.cocreate != nil {
-		scrollHint := " · Tab 滚动:对话"
+		scrollHint := " · Tab Cuộn: hội thoại"
 		if m.cocreate.focusPrompt {
-			scrollHint = " · Tab 滚动:创作指令"
+			scrollHint = " · Tab Cuộn: chỉ thị"
 		}
 		switch {
 		case m.cocreate.awaiting:
-			return dimStyle.Render("等待 AI 回复 · Esc 退出共创" + scrollHint + suffix)
+			return dimStyle.Render("Đang chờ AI trả lời · Esc Thoát đồng sáng tạo" + scrollHint + suffix)
 		case m.cocreate.canStart():
-			startLabel := "Ctrl+S 开始创作"
+			startLabel := "Ctrl+S Bắt đầu viết"
 			if m.cocreate.stage {
-				startLabel = "Ctrl+S 应用并继续"
+				startLabel = "Ctrl+S Áp dụng & viết tiếp"
 			}
-			return dimStyle.Render("Enter 发送 · " + startLabel + " · Esc 退出共创" + scrollHint + suffix)
+			return dimStyle.Render("Enter Gửi · " + startLabel + " · Esc Thoát" + scrollHint + suffix)
 		default:
-			return dimStyle.Render("Enter 发送 · Esc 退出共创" + scrollHint + suffix)
+			return dimStyle.Render("Enter Gửi · Esc Thoát đồng sáng tạo" + scrollHint + suffix)
 		}
 	}
 	if m.mode == modeNew {
 		if m.startupMode == startupModeQuick {
-			return dimStyle.Render("Tab 切换启动模式 · 输入 / 搜索命令 · Enter 直接开始创作 · Esc 清空输入" + suffix)
+			return dimStyle.Render("Tab Đổi chế độ · Gõ / Tìm lệnh · Enter Bắt đầu viết · Esc Xóa ô nhập" + suffix)
 		}
-		return dimStyle.Render("Tab 切换启动模式 · 输入 / 搜索命令 · Enter 开始共创对话 · Esc 清空输入" + suffix)
+		return dimStyle.Render("Tab Đổi chế độ · Gõ / Tìm lệnh · Enter Bắt đầu đồng sáng tạo · Esc Xóa ô nhập" + suffix)
 	}
 	switch m.snapshot.RuntimeState {
 	case "pausing":
-		return dimStyle.Render("正在暂停创作 · 请等待当前轮次结束" + suffix)
+		return dimStyle.Render("Đang tạm dừng viết · Vui lòng đợi hết lượt hiện tại" + suffix)
 	case "paused":
-		return dimStyle.Render("输入 / 搜索命令 · Enter 继续创作 · Esc 清空输入" + suffix)
+		return dimStyle.Render("Gõ / Tìm lệnh · Enter Tiếp tục viết · Esc Xóa ô nhập" + suffix)
 	}
-	return dimStyle.Render("输入 / 搜索命令 · 点击/Tab 切换面板 · ↑↓ 滚动 · End 跳底 · Ctrl+L 清屏 · Esc 暂停 · Enter 发送" + suffix)
+	return dimStyle.Render("Gõ / Tìm lệnh · Tab Đổi khung · ↑↓ Cuộn · End Xuống cuối · Ctrl+L Xóa màn hình · Esc Tạm dừng · Enter Gửi" + suffix)
 }
 
 func (m *Model) inputLimitHint() string {
@@ -506,7 +508,7 @@ func (m *Model) inputLimitHint() string {
 	if used < limit*4/5 {
 		return ""
 	}
-	return fmt.Sprintf(" · 输入 %d/%d", used, limit)
+	return fmt.Sprintf(" · Đã nhập %d/%d", used, limit)
 }
 
 func (m *Model) eventFlowWidth() int {
@@ -552,7 +554,7 @@ func (m *Model) outputDir() string {
 }
 
 func defaultSteerPlaceholder() string {
-	return "输入剧情干预，例如：把感情线提前到第4章"
+	return "Nhập chỉ thị can thiệp (bằng tiếng Việt), vd: Đẩy tuyến tình cảm lên sớm ở chương 4"
 }
 
 func (m *Model) syncRuntimePlaceholder() {
@@ -560,26 +562,26 @@ func (m *Model) syncRuntimePlaceholder() {
 		return
 	}
 	if m.starting {
-		m.textarea.Placeholder = "正在初始化创作..."
+		m.textarea.Placeholder = "Đang khởi tạo sáng tác..."
 		return
 	}
 	switch m.snapshot.RuntimeState {
 	case "completed":
 		m.textarea.Placeholder = donePlaceholder
 	case "pausing":
-		m.textarea.Placeholder = "正在暂停创作..."
+		m.textarea.Placeholder = "Đang tạm dừng sáng tác..."
 	case "paused":
 		if m.snapshot.AdvanceMode == "review" && m.snapshot.Phase == "writing" {
-			m.textarea.Placeholder = "逐章验收等待中：输入修改意见，或 /next 放行下一章"
+			m.textarea.Placeholder = "Đang chờ duyệt chương: nhập góp ý chỉnh sửa, hoặc /next để viết chương tiếp"
 		} else {
-			m.textarea.Placeholder = "创作已暂停，输入任意内容继续创作"
+			m.textarea.Placeholder = "Đã tạm dừng, nhập nội dung bất kỳ để tiếp tục viết"
 		}
 	default:
 		if !m.snapshot.IsRunning {
 			if m.snapshot.AdvanceMode == "review" && m.snapshot.Phase == "writing" {
-				m.textarea.Placeholder = "逐章验收等待中：输入修改意见，或 /next 放行下一章"
+				m.textarea.Placeholder = "Đang chờ duyệt chương: nhập góp ý chỉnh sửa, hoặc /next để viết chương tiếp"
 			} else {
-				m.textarea.Placeholder = "运行中断，输入任意内容恢复创作"
+				m.textarea.Placeholder = "Phiên viết bị gián đoạn, nhập nội dung bất kỳ để nối lại"
 			}
 		} else {
 			m.textarea.Placeholder = defaultSteerPlaceholder()
@@ -617,20 +619,23 @@ func (m *Model) layoutHeights() (topH, inputH, bodyH int) {
 
 func (m Model) View() string {
 	if m.width == 0 || m.height == 0 {
-		return "加载中..."
+		return "Đang tải..."
 	}
 	if m.width < 100 {
 		return lipgloss.NewStyle().
 			Width(m.width).Height(m.height).
 			AlignHorizontal(lipgloss.Center).
 			AlignVertical(lipgloss.Center).
-			Render("终端宽度不足，请至少扩展到 100 列")
+			Render("Cửa sổ terminal quá hẹp, vui lòng mở rộng tối thiểu 100 cột")
 	}
 	if m.cocreate != nil {
 		return renderCoCreateModal(m.width, m.height, m.cocreate, errorText(m.err), m.textarea.View(), m.spinnerIdx, m.quitPending)
 	}
 	if m.help != nil {
 		return renderHelpModal(m.width, m.height, m.help)
+	}
+	if m.reader != nil {
+		return renderReaderModal(m.width, m.height, m.reader)
 	}
 	if m.report != nil {
 		return renderReportModal(m.width, m.height, m.report)
@@ -683,6 +688,9 @@ func (m Model) View() string {
 	// 弹窗覆盖叠加：浮在 body 底部上方，不影响布局
 	if m.modelSwitch != nil {
 		commandBar := renderModelSwitchBar(m.width, m.modelSwitch)
+		view = overlayAboveInput(view, commandBar, inputH)
+	} else if m.transSwitch != nil {
+		commandBar := renderTransSwitchBar(m.width, m.transSwitch)
 		view = overlayAboveInput(view, commandBar, inputH)
 	} else if m.modelConfig != nil {
 		view = overlayAboveInput(view, renderModelConfigModal(m.width, m.modelConfig), inputH)

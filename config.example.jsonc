@@ -1,57 +1,71 @@
 {
-  // 默认使用的 provider、model 和推理强度。
-  // ★ provider 的值是下面 providers 里的一个 key 名（一根“指针”），不是协议名——
-  //   改 provider 必须保证 providers 里有同名条目，否则启动会报“未配置凭证”。
-  //   运行时用 /config 管理 Provider/模型库，用 /model 在已保存模型间切换。
+  // Provider, model và mức suy luận mặc định.
+  // ★ Giá trị của "provider" phải là tên một key nằm trong "providers" bên dưới
+  //   (đóng vai trò như con trỏ / 指针, không phải tên giao thức API) — nếu đổi
+  //   provider, bắt buộc phải có mục trùng tên trong "providers", nếu không sẽ báo lỗi thiếu cấu hình.
+  //   Khi đang chạy có thể dùng /config để quản lý Provider/Model và /model để chuyển đổi theo từng vai trò.
   "provider": "openrouter",
   "model": "google/gemini-2.5-flash",
-  // 可选。默认推理强度：off / low / medium / high / xhigh / max。
-  // 省略或空字符串 = 不覆盖，沿用模型/provider 默认。
+  // Tùy chọn. Mức suy luận mặc định: off / low / medium / high / xhigh / max.
+  // Bỏ qua hoặc để rỗng = không ghi đè, dùng mặc định của model/provider.
   "reasoning_effort": "medium",
 
-  // Provider 凭证库。key 自定义，用作上面 provider 字段引用的目标。
-  // 已知 provider（openai/anthropic/gemini/openrouter/deepseek/qwen/glm/grok/mimo/ollama/bedrock）
-  // 可省略 type；自定义代理必须显式声明 type 指明 API 协议。
+  // Thư viện thông tin xác thực Provider. Key đặt tùy ý, dùng làm đích cho trường "provider" ở trên.
+  // Các provider đã biết (openai/anthropic/gemini/openrouter/deepseek/qwen/glm/grok/mimo/ollama/bedrock)
+  // có thể bỏ qua "type"; proxy tùy chỉnh bắt buộc khai báo rõ "type" để chỉ định giao thức API.
   "providers": {
     "openrouter": {
       "api_key": "sk-or-v1-xxx",
       "base_url": "https://openrouter.ai/api/v1",
-      // 可选。声明 /model 面板候选及模型专属上下文窗口；旧字符串数组仍兼容。
-      // json_schema 是原生结构化输出的显式覆盖：true=确认支持，false=确认不支持，
-      // 省略=采用适配器能力。自定义中转或能力取决于具体模型时建议明确填写。
+      // Tùy chọn. Khai báo danh sách model hiện trong bảng /model và context_window riêng cho từng model;
+      // mảng chuỗi cũ vẫn tương thích. json_schema ghi đè chế độ Structured Output gốc (true/false/bỏ qua).
       "models": [
         { "name": "google/gemini-3.0-flash", "context_window": 200000 },
         { "name": "google/gemini-3.1-pro", "context_window": 1000000 }
       ],
-      // 可选。透传给该 provider 每次请求的额外参数（采样参数如 temperature/top_p/
-      // min_p，或厂商特有键如 nvidia 开 think 的 chat_template_kwargs），逐字并入请求体。
-      // 仅对 OpenAI 兼容类 provider 生效（openrouter/deepseek/qwen/glm/grok/ollama…）；
-      // type:"openai" 会按官方参数白名单过滤。值由用户自负其责。
+      // Tùy chọn. Tham số bổ sung truyền thẳng vào body mỗi request (ví dụ temperature/top_p/min_p
+      // hoặc chat_template_kwargs). Chỉ áp dụng cho nhóm provider tương thích OpenAI.
       "extra_body": { "temperature": 0.8, "min_p": 0.05 },
-      // 可选。provider 级配置，透传给 HTTP 客户端层（不是请求体），用于需要
-      // 自定义 User-Agent / headers / anthropic_beta 的代理。
+      // Tùy chọn. Cấu hình cấp HTTP client (không vào request body), dùng cho proxy yêu cầu User-Agent/headers riêng.
       "extra": {
         "user_agent": "my-client/1.0",
         "headers": { "X-Custom-Client": "my-client" }
       }
+    },
+    "opencode-go": {
+      // OpenCode Go gói tháng: tự động gắn header `x-opencode-session` theo từng cuộc hội thoại
+      // và tự định tuyến đúng giao thức cho từng model (Chat / Responses / Anthropic / Gemini).
+      // Có thể điền api_key tại đây hoặc đặt biến môi trường OPENCODE_API_KEY.
+      "api_key": "oc_sk_xxx",
+      "base_url": "https://opencode.ai/inference/go",
+      "models": [
+        { "name": "deepseek-v4-pro" },
+        { "name": "deepseek-v4.1-flash" },
+        { "name": "glm-5.3" },
+        { "name": "kimi-k3.1-pro" },
+        { "name": "mimo-v2.6-pro" },
+        { "name": "qwen4-max" },
+        { "name": "minimax-m3" },
+        { "name": "gpt-6-luna" },
+        { "name": "gemini-4-argon" }
+      ]
     },
     "anthropic": {
       "api_key": "sk-ant-xxx",
       "models": [{ "name": "claude-sonnet-4-6", "json_schema": true }]
     },
     "ollama": {
-      // ollama / bedrock / 显式 type 的自定义代理可以省略 api_key
-      // base_url 需带 /v1（ollama 的 OpenAI 兼容端点在 /v1 下）
+      // ollama / bedrock / proxy có khai báo type có thể bỏ qua api_key
+      // base_url cần có hậu tố /v1 (endpoint tương thích OpenAI của Ollama nằm dưới /v1)
       "base_url": "http://localhost:11434/v1",
       "models": [{ "name": "qwen3:14b", "context_window": 32768 }],
-      // 可选。流式空闲看门狗（Go duration，默认 "5m"）：LocalAI/ollama 等
-      // 本地慢推理首块可超 5 分钟，按 provider 放宽，不影响其它通道
+      // Tùy chọn. Thời gian chờ tối đa khi stream bị im lặng (Go duration, mặc định "5m"):
+      // hữu ích cho model chạy local chậm (LocalAI/Ollama).
       "stream_idle_timeout": "15m"
     },
     "claude-code-proxy": {
-      // 自定义 Anthropic 代理。如果上游限制只能由 Claude Code 客户端访问，
-      // 用 extra 透传 user_agent / anthropic_beta / headers。
-      // base_url 不需要带 /v1。
+      // Proxy Anthropic tùy chỉnh. Nếu upstream chỉ cho phép client Claude Code truy cập,
+      // dùng extra để truyền user_agent / anthropic_beta / headers. base_url không cần /v1.
       "type": "anthropic",
       "api_key": "sk-xxx",
       "base_url": "https://proxy.example.com",
@@ -67,9 +81,7 @@
       }
     },
     "codex-proxy": {
-      // 自定义 OpenAI/NewAPI 代理。如果上游限制只能由 Codex 客户端访问，
-      // 用 extra 覆盖 User-Agent，并透传 Codex 识别头。
-      // base_url 按代理实际地址填写；OpenAI 协议通常需要 /v1。
+      // Proxy OpenAI/NewAPI tùy chỉnh.
       "type": "openai",
       "api_key": "sk-xxx",
       "base_url": "https://proxy.example.com/v1",
@@ -78,14 +90,9 @@
         { "name": "gpt-5.4-mini" },
         { "name": "MiniMax-M3", "context_window": 1000000 }
       ],
-      // 可选。OpenAI 协议 endpoint：chat（默认 /v1/chat/completions）/
-      // responses（/v1/responses）。Codex 类代理通常需要 responses。
+      // Tùy chọn. Endpoint giao thức OpenAI: chat (mặc định /v1/chat/completions) hoặc responses (/v1/responses).
       "api": "responses",
       "extra": {
-        // 可选。缓存路由键 prompt_cache_key 默认只发给官方 api.openai.com——
-        // 第三方兼容端对未知字段没有统一契约（Groq/Cerebras/火山等严格端会 400，
-        // 重编组型中转会静默丢弃）。确认你的中转原样透传请求体到 OpenAI 时，
-        // 打开此项可获得缓存路由亲和（提升命中率）。
         "prompt_cache_params": true,
         "user_agent": "codex-tui/0.142.3 (Mac OS 26.5.1; arm64) Apple_Terminal/470.2 (codex-tui; 0.142.3)",
         "headers": {
@@ -97,53 +104,51 @@
     }
   },
 
-  // 可选。按角色覆盖默认模型；未配的角色使用上面的 model。
-  // reasoning_effort 也可按角色覆盖；未配时继承顶层 reasoning_effort。
-  // 角色：architect / writer / editor。fallbacks 在主模型失败时按序尝试。
-  // 注意：这里的 provider 同样是“指针”，必须指向 providers 里存在的 key。
+  // Tùy chọn. Ghi đè model theo từng vai trò; vai trò không khai báo sẽ dùng model mặc định ở trên.
+  // Các vai trò hỗ trợ: architect / writer / editor / translator (dịch sang tiếng Việt).
+  // Mẹo tối ưu: để writer/architect/editor dùng model Trung Quốc (DeepSeek/Qwen/GLM/MiMo) viết truyện tiếng Trung,
+  // còn "translator" trỏ sang Gemini hoặc Claude để dịch bản hoàn thiện sang tiếng Việt mượt mà nhất!
   // "roles": {
+  //   "architect": { "provider": "deepseek", "model": "deepseek-reasoner" },
   //   "writer": {
-  //     "provider": "anthropic",
-  //     "model": "claude-sonnet-4",
-  //     "reasoning_effort": "high",
-  //     "fallbacks": [{ "provider": "openrouter", "model": "google/gemini-3.0-pro" }]
+  //     "provider": "deepseek",
+  //     "model": "deepseek-chat",
+  //     "reasoning_effort": "medium",
+  //     "fallbacks": [{ "provider": "openrouter", "model": "qwen/qwen3-235b-a22b" }]
   //   },
-  //   "architect": { "provider": "openrouter", "model": "google/gemini-3.1-pro" }
+  //   "editor": { "provider": "deepseek", "model": "deepseek-chat" },
+  //   "translator": { "provider": "openrouter", "model": "google/gemini-3.1-pro" }
   // },
 
-  // 写作风格：default / suspense / fantasy / romance。
-  "style": "default"
+  // Phong cách sáng tác tiếng Trung: default / suspense / fantasy / romance.
+  "style": "default",
 
-  // 旧版全局上下文窗口，保留作所有模型的回退。优先级低于 models[].context_window，
-  // 高于模型注册表和 200k 默认值。仅影响压缩阈值，不改变 API 实际请求长度。
+  // Cấu hình mặc định cho lớp dịch tiếng Việt (có thể bật/đổi nóng riêng theo từng truyện bằng lệnh /trans):
+  // - genre: auto | tien_hiep | co_trang | fantasy (khử Hán-Việt tên Tây) | hien_dai
+  // - tone: normal (phổ thông) | mature (18+ trưởng thành, giữ trọn độ nóng & cảm xúc)
+  // - auto_translate: after_arc (sau khi Editor duyệt xong Arc) | after_commit (ngay sau mỗi chương) | manual (chỉ dịch khi gọi /translate)
+  "translate": {
+    "genre": "auto",
+    "tone": "normal",
+    "auto_translate": "after_arc"
+  }
+
+  // Context window dự phòng toàn cục (ưu tiên thấp hơn models[].context_window).
   // "context_window": 300000
 
-  // 可选。单本书（output 目录）的成本预算，挂机保险丝。book_usd > 0 才启用。
-  // 累计花费达到 warn_ratio 时告警不停机；达到 100% 在当前子代理任务结束后
-  // 优雅停机（hard_stop=true 则越线立即停）。停机后上调 book_usd 即可恢复续跑。
-  // 注意：自定义模型若注册表查不到价格且 provider 不自报 cost，预算形同虚设。
+  // Tùy chọn. Ngân sách tối đa cho mỗi cuốn truyện (USD). book_usd > 0 mới kích hoạt.
   // "budget": {
   //   "book_usd": 50,
   //   "warn_ratio": 0.8,
   //   "hard_stop": false
   // },
 
-  // 可选。无人值守告警，缺省启用（Windows 通知 / macOS osascript / Linux notify-send）。
-  // 配置 command 后改走自定义命令（手机推送走这里）：字段经环境变量
-  // NOTIFY_TITLE / NOTIFY_BODY / NOTIFY_KIND / NOTIFY_LEVEL 通过环境变量传入，完整 JSON 同时写 stdin。
-  // Unix shell 用 $NOTIFY_TITLE；Windows PowerShell 用 $env:NOTIFY_TITLE。
-  // events 可选过滤：run_end / budget / advance_gate / stop_guard /
-  // plan_start / deadlock / worker_failure；缺省全部开启。
+  // Tùy chọn. Thông báo khi chạy treo máy (mặc định bật thông báo hệ thống OS).
   // "notify": {
   //   "enabled": true,
-  //   // 标题/正文含中文与空格，必须经 --data-urlencode 传参，不可拼进 URL 路径或 HTTP 头。
-  //   // Bark (iOS):         "command": "curl -s --data-urlencode \"title=$NOTIFY_TITLE\" --data-urlencode \"body=$NOTIFY_BODY\" https://api.day.app/<key>"
-  //   // ntfy (iOS/Android): "command": "curl -s -G --data-urlencode \"title=$NOTIFY_TITLE\" --data-urlencode \"message=$NOTIFY_BODY\" ntfy.sh/<topic>/publish"
   //   "events": ["run_end", "budget", "advance_gate", "stop_guard", "plan_start", "deadlock", "worker_failure"]
   // }
 
-  // 可选。置 true 关闭启动时的新版本检查提醒（默认开）。检查只读 GitHub Releases
-  // 公开接口，结果本地缓存 24h；发现新版本时在欢迎页/事件流提示版本号与更新摘要，
-  // 是否升级始终由你运行 ainovel-cli update 决定。
+  // Tùy chọn. Đặt true để tắt kiểm tra phiên bản mới lúc khởi động.
   // "disable_update_check": false
 }

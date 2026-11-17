@@ -58,13 +58,13 @@ func TestEnterStartingSwitchesToWorkbenchImmediately(t *testing.T) {
 	if !m.snapshot.IsRunning {
 		t.Fatal("snapshot should render as running during local startup")
 	}
-	if got := m.textarea.Placeholder; got != "正在初始化创作..." {
+	if got := m.textarea.Placeholder; got != "Đang khởi tạo sáng tác..." {
 		t.Fatalf("placeholder = %q", got)
 	}
 	if len(m.events) != 2 {
 		t.Fatalf("events = %+v, want startup user + system events", m.events)
 	}
-	if m.events[0].Category != "USER" || !strings.HasPrefix(m.events[0].Summary, "创作需求: ") {
+	if m.events[0].Category != "USER" || !strings.HasPrefix(m.events[0].Summary, "Yêu cầu sáng tác: ") {
 		t.Fatalf("first event = %+v, want USER prompt event", m.events[0])
 	}
 }
@@ -89,7 +89,7 @@ func TestStartupFailureStaysInWorkbench(t *testing.T) {
 	if got.snapshot.IsRunning {
 		t.Fatal("启动失败后 snapshot 不应仍显示运行中")
 	}
-	if !strings.Contains(got.textarea.Placeholder, "启动失败") {
+	if !strings.Contains(got.textarea.Placeholder, "Khởi động thất bại") {
 		t.Fatalf("placeholder = %q", got.textarea.Placeholder)
 	}
 	if len(got.events) == 0 || got.events[len(got.events)-1].Category != "ERROR" {
@@ -119,8 +119,8 @@ func TestStartingSnapshotShowsStartingNotIdle(t *testing.T) {
 	if !got.snapshot.IsRunning {
 		t.Fatal("启动期不应显示为已停止")
 	}
-	if label := snapshotRuntimeStateLabel(got.snapshot.RuntimeState); label != "启动中" {
-		t.Fatalf("侧栏标签 = %q, want 启动中", label)
+	if label := snapshotRuntimeStateLabel(got.snapshot.RuntimeState); label != "Đang khởi động" {
+		t.Fatalf("侧栏标签 = %q, want Đang khởi động", label)
 	}
 }
 
@@ -156,7 +156,7 @@ func TestApplyStartupPromptEventTruncatesSummaryButKeepsDetail(t *testing.T) {
 	if ev.Detail != prompt {
 		t.Fatalf("detail should keep full prompt, got len=%d want=%d", len([]rune(ev.Detail)), len([]rune(prompt)))
 	}
-	maxSummaryRunes := len([]rune("创作需求: ")) + maxPromptEventCols
+	maxSummaryRunes := len([]rune("Yêu cầu sáng tác: ")) + maxPromptEventCols
 	if got := len([]rune(ev.Summary)); got > maxSummaryRunes {
 		t.Fatalf("summary runes = %d, want <= %d", got, maxSummaryRunes)
 	}

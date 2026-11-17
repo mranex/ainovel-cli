@@ -22,7 +22,7 @@ func NewSaveReviewCheckTool(st *store.Store) *SaveReviewCheckTool {
 }
 
 func (t *SaveReviewCheckTool) Name() string                         { return "save_review_check" }
-func (t *SaveReviewCheckTool) Label() string                        { return "保存返工复核" }
+func (t *SaveReviewCheckTool) Label() string                        { return "Lưu phúc khảo sửa lại" }
 func (t *SaveReviewCheckTool) ReadOnly(json.RawMessage) bool        { return false }
 func (t *SaveReviewCheckTool) ConcurrencySafe(json.RawMessage) bool { return false }
 func (t *SaveReviewCheckTool) StrictSchema() bool                   { return true }

@@ -31,7 +31,7 @@ func (t *SaveReviewTool) Description() string {
 		"Editor 依据完整上下文作出 verdict，工具只校验事实并原子更新 Progress。" +
 		"返回结构化事实：verdict / affected_chapters / next_flow / next_chapter"
 }
-func (t *SaveReviewTool) Label() string { return "保存审阅" }
+func (t *SaveReviewTool) Label() string { return "Lưu thẩm định" }
 
 // 写工具（同时更新 reviews/ 与 Progress 的 PendingRewrites/Flow），禁止并发。
 func (t *SaveReviewTool) ReadOnly(_ json.RawMessage) bool        { return false }

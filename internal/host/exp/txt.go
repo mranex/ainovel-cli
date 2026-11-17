@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/voocel/ainovel-cli/internal/domain"
+	"github.com/voocel/ainovel-cli/internal/host/trans"
 )
 
 // chapterTitleIndex 给定章号查标题，缺失返回空串。
@@ -66,35 +67,113 @@ func renderTXT(
 	locations map[int]chapterLocation,
 	bodies map[int]string,
 ) string {
-	var b strings.Builder
+	return renderTXTWithLang(novelName, chapters, titleIdx, locations, bodies, LangZH, nil, nil, nil)
+}
 
+func renderTXTWithLang(
+	novelName string,
+	chapters []int,
+	titleIdx chapterTitleIndex,
+	locations map[int]chapterLocation,
+	bodies map[int]string,
+	lang Lang,
+	hasVi map[int]bool,
+	zhTitleIdx chapterTitleIndex,
+	zhBodies map[int]string,
+) string {
+	if lang != LangVI && lang != LangBilingual {
+		var b strings.Builder
+
+		if name := strings.TrimSpace(novelName); name != "" {
+			b.WriteString("《")
+			b.WriteString(name)
+			b.WriteString("》\n\n")
+		}
+
+		useLayered := len(locations) > 0
+
+		for i, ch := range chapters {
+			if useLayered {
+				if loc, ok := locations[ch]; ok && loc.IsFirstOfVolume {
+					b.WriteString("\n═══════════════════════════════════════════\n")
+					fmt.Fprintf(&b, "           第 %d 卷  %s\n", loc.VolumeIdx, strings.TrimSpace(loc.VolumeTitle))
+					b.WriteString("═══════════════════════════════════════════\n\n")
+				}
+			}
+
+			title := strings.TrimSpace(titleIdx[ch])
+			if title != "" {
+				fmt.Fprintf(&b, "第 %d 章  %s\n\n", ch, title)
+			} else {
+				fmt.Fprintf(&b, "第 %d 章\n\n", ch)
+			}
+
+			body := domain.ChapterBody(strings.TrimSpace(bodies[ch]), title)
+			b.WriteString(body)
+			b.WriteString("\n")
+			if i < len(chapters)-1 {
+				b.WriteString("\n\n")
+			}
+		}
+		return b.String()
+	}
+
+	var b strings.Builder
 	if name := strings.TrimSpace(novelName); name != "" {
-		b.WriteString("《")
+		b.WriteString("«")
 		b.WriteString(name)
-		b.WriteString("》\n\n")
+		b.WriteString("»\n\n")
 	}
 
 	useLayered := len(locations) > 0
-
 	for i, ch := range chapters {
 		if useLayered {
 			if loc, ok := locations[ch]; ok && loc.IsFirstOfVolume {
 				b.WriteString("\n═══════════════════════════════════════════\n")
-				fmt.Fprintf(&b, "           第 %d 卷  %s\n", loc.VolumeIdx, strings.TrimSpace(loc.VolumeTitle))
+				fmt.Fprintf(&b, "           Quyển %d  %s\n", loc.VolumeIdx, strings.TrimSpace(loc.VolumeTitle))
 				b.WriteString("═══════════════════════════════════════════\n\n")
 			}
 		}
 
-		title := strings.TrimSpace(titleIdx[ch])
-		if title != "" {
-			fmt.Fprintf(&b, "第 %d 章  %s\n\n", ch, title)
+		titleVi := strings.TrimSpace(titleIdx[ch])
+		if titleVi != "" {
+			fmt.Fprintf(&b, "Chương %d: %s\n\n", ch, titleVi)
 		} else {
-			fmt.Fprintf(&b, "第 %d 章\n\n", ch)
+			fmt.Fprintf(&b, "Chương %d\n\n", ch)
 		}
 
-		body := domain.ChapterBody(strings.TrimSpace(bodies[ch]), title)
-		b.WriteString(body)
-		b.WriteString("\n")
+		translated := hasVi == nil || hasVi[ch]
+		if translated {
+			bodyVi := trans.StripViChapterHeader(domain.ChapterBody(strings.TrimSpace(bodies[ch]), titleVi), titleVi)
+			b.WriteString(bodyVi)
+			b.WriteString("\n")
+		} else if lang == LangVI {
+			b.WriteString("[Chưa dịch tiếng Việt — nguyên bản tiếng Trung]\n\n")
+			zhTitle := strings.TrimSpace(zhTitleIdx[ch])
+			b.WriteString(domain.ChapterBody(strings.TrimSpace(bodies[ch]), zhTitle))
+			b.WriteString("\n")
+		}
+
+		if lang == LangBilingual {
+			zhTitle := strings.TrimSpace(zhTitleIdx[ch])
+			zhRaw := strings.TrimSpace(zhBodies[ch])
+			if zhRaw == "" {
+				zhRaw = strings.TrimSpace(bodies[ch])
+			}
+			zhBody := domain.ChapterBody(zhRaw, zhTitle)
+			if translated {
+				b.WriteString("\n───────────────────────────────────────────\n")
+			}
+			b.WriteString("[Nguyên bản tiếng Trung]\n")
+			if zhTitle != "" {
+				fmt.Fprintf(&b, "第 %d 章  %s\n\n", ch, zhTitle)
+			} else {
+				fmt.Fprintf(&b, "第 %d 章\n\n", ch)
+			}
+			b.WriteString(zhBody)
+			b.WriteString("\n")
+		}
+
 		if i < len(chapters)-1 {
 			b.WriteString("\n\n")
 		}

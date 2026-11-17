@@ -20,7 +20,7 @@ func (t *SaveBookTool) Name() string { return "save_book" }
 func (t *SaveBookTool) Description() string {
 	return "保存作品书名和面向读者的无剧透简介。简介应呈现主角、核心冲突和阅读钩子，不得写成内部大纲或结局梗概。"
 }
-func (t *SaveBookTool) Label() string                          { return "保存作品信息" }
+func (t *SaveBookTool) Label() string                          { return "Lưu thông tin truyện" }
 func (t *SaveBookTool) ReadOnly(_ json.RawMessage) bool        { return false }
 func (t *SaveBookTool) ConcurrencySafe(_ json.RawMessage) bool { return false }
 func (t *SaveBookTool) StrictSchema() bool                     { return true }

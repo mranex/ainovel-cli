@@ -28,7 +28,7 @@ func (t *AuditFoundationTool) Description() string {
 	return "审查已落盘的 book、premise、outline、characters、world_rules 与 compass 是否语义一致。" +
 		"必须先重新调用 novel_context，并原样传入 foundation_status.fingerprint。"
 }
-func (t *AuditFoundationTool) Label() string                          { return "审查设定" }
+func (t *AuditFoundationTool) Label() string                          { return "Thẩm định thiết lập" }
 func (t *AuditFoundationTool) ReadOnly(_ json.RawMessage) bool        { return false }
 func (t *AuditFoundationTool) ConcurrencySafe(_ json.RawMessage) bool { return false }
 func (t *AuditFoundationTool) StrictSchema() bool                     { return true }

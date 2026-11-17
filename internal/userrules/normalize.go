@@ -184,5 +184,8 @@ const normalizerSystemPrompt = `你是 AI 小说写作系统的「规则归一�
 - 不可机械检查、无明确阈值、依赖语境的,一律放 preferences。
 - 原则:宁可漏进 structured,也不要错误提升(那会每章误报)。
 
-preferences 用一段可读的自然语言保留风格、人物与审美偏好。
+【跨语言桥接】
+- 若用户输入是越南语或其他非中文语言，请先完整理解原意，并将 structured.genre、preferences 与 uncertain 准确翻译/表达为自然的简体中文，确保下游中文写手直接适用；若规则包含成人向/18+风格偏好，请如实保留，不要擅自删改。
+
+preferences 用一段可读的简体中文自然语言保留风格、人物与审美偏好。
 uncertain 说明你故意没有提升到 structured 的项目及原因。`
